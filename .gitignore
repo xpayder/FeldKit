@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# release signing material never goes into the repository
+*.jks
+*.keystore
+keystore.properties

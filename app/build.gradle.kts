@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -11,12 +13,33 @@ android {
         applicationId = "app.feldkit"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes the tag's number (e.g. v1.2.3 -> -PversionCode=10203 -PversionName=1.2.3); local builds stay at 1
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // libVLC ships native libraries for every ABI (80 MB); phones that matter here are arm64
-        ndk { abiFilters += "arm64-v8a" }
+        // Debug builds carry arm64 only (libVLC ships every ABI, 80 MB); a release build asks for -PallAbis and gets one APK per ABI
+        if (!project.hasProperty("allAbis")) ndk { abiFilters += "arm64-v8a" }
+    }
+    splits {
+        abi {
+            isEnable = project.hasProperty("allAbis")
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+    // The release key comes from the environment (GitHub Actions secrets) or keystore.properties; without either the build is unsigned.
+    signingConfigs {
+        create("release") {
+            val props = Properties().apply { rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) } }
+            fun v(env: String, key: String) = System.getenv(env) ?: props.getProperty(key)
+            val file = v("FELDKIT_KEYSTORE_FILE", "storeFile")
+            if (file != null) {
+                storeFile = rootProject.file(file); storePassword = v("FELDKIT_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = v("FELDKIT_KEY_ALIAS", "keyAlias"); keyPassword = v("FELDKIT_KEY_PASSWORD", "keyPassword")
+            }
+        }
     }
     ndkVersion = "28.2.13676358"
     externalNativeBuild {
@@ -28,9 +51,11 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            optimization { enable = true }
+            // -PdebuggableRelease: an optimised build that tools/phone-image.sh can still feed disk images (never published)
+            isDebuggable = project.hasProperty("debuggableRelease")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
     }
     compileOptions {
