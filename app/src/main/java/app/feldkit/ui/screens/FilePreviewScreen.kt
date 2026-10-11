@@ -159,6 +159,10 @@ fun FilePreviewScreen(
                     AudioPlayerCard(uri, current.name, current.formattedSize, prev, next) { openExternal(context, current) }
                 }
                 type == FileType.PDF && !failed -> PdfViewer(uri, Modifier.fillMaxSize().padding(top = pad), onFail = { failed = true })
+                type == FileType.TEXT && !failed && current.extension in StructuredKinds -> StructuredTextViewer(
+                    current, uri, current.extension, Modifier.fillMaxSize().padding(top = pad),
+                    edit = if (canDelete && onSaveText != null && current.size <= 512 * 1024) TextEditSupport(current, { onSaveText(current, it) }, { previousVersionOf?.invoke(current) }, onNavigateBack) else null
+                )
                 (type == FileType.TEXT || type == FileType.CODE) && !failed -> TextViewer(
                     uri, Modifier.fillMaxSize().padding(top = pad), lineNumbers = type == FileType.CODE,
                     edit = if (canDelete && onSaveText != null && current.size <= 512 * 1024) TextEditSupport(current, { onSaveText(current, it) }, { previousVersionOf?.invoke(current) }, onNavigateBack) else null

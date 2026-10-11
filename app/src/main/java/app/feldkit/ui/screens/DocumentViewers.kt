@@ -227,7 +227,7 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean, e
     }
 }
 
-private fun styleOf(k: app.feldkit.code.Highlighter.Kind): androidx.compose.ui.text.SpanStyle = when (k) {
+internal fun styleOf(k: app.feldkit.code.Highlighter.Kind): androidx.compose.ui.text.SpanStyle = when (k) {
     app.feldkit.code.Highlighter.Kind.KEYWORD -> androidx.compose.ui.text.SpanStyle(color = Accent)
     app.feldkit.code.Highlighter.Kind.STRING -> androidx.compose.ui.text.SpanStyle(color = AccentSand)
     app.feldkit.code.Highlighter.Kind.COMMENT -> androidx.compose.ui.text.SpanStyle(color = TextTertiary, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)

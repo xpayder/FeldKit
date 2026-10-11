@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 private class DbTable(val name: String, val type: String, val sql: String?)
-private class Grid(val columns: List<String>, val rows: List<List<String>>, val more: Boolean)
+internal class Grid(val columns: List<String>, val rows: List<List<String>>, val more: Boolean)
 
 private const val PAGE = 100
 private const val MAX_DB_BYTES = 400L shl 20
@@ -170,7 +170,7 @@ private fun exportCsv(dbName: String, what: String, g: Grid): String {
 }
 
 @Composable
-private fun GridView(g: Grid?, modifier: Modifier) {
+internal fun GridView(g: Grid?, modifier: Modifier) {
     if (g == null) return
     // column width from the longest of the header and the first rows (monospace 12 sp is about 7.4 dp per character)
     val widths = remember(g) { g.columns.indices.map { c -> (maxOf(g.columns[c].length, g.rows.take(40).maxOfOrNull { it.getOrNull(c)?.length ?: 0 } ?: 0) * 7.4f + 20f).coerceIn(56f, 240f).dp } }
