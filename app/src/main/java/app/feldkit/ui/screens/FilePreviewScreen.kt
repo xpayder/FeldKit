@@ -164,6 +164,7 @@ fun FilePreviewScreen(
                     edit = if (canDelete && onSaveText != null && current.size <= 512 * 1024) TextEditSupport(current, { onSaveText(current, it) }, { previousVersionOf?.invoke(current) }, onNavigateBack) else null
                 )
                 type == FileType.ARCHIVE -> if (!failed && ArchiveSession.kindOf(current.name) != null) ArchiveViewer(current, uri, Modifier.fillMaxSize().padding(top = pad), onFail = { failed = true }) else OpenWithView(current, "This archive format needs another app.", { openExternal(context, current) }, { share(context, current) }, Modifier.fillMaxSize().padding(top = pad))
+                type == FileType.DATABASE -> SqliteViewer(current, uri, { openExternal(context, current) }, { share(context, current) }, Modifier.fillMaxSize().padding(top = pad))
                 type == FileType.PROJECT -> ProjectViewer(current, uri, { openExternal(context, current) }, { share(context, current) }, Modifier.fillMaxSize().padding(top = pad))
                 hexMode -> HexViewer(uri, Modifier.fillMaxSize().padding(top = pad))
                 else -> OpenWithView(

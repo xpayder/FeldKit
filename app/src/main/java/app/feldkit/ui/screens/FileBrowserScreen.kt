@@ -427,7 +427,7 @@ private fun GridCell(entry: FileSystemEntry, isSelected: Boolean, playing: Boole
                 Icon(
                     when (entry.fileType) {
                         FileType.DIRECTORY -> Icons.Default.Folder; FileType.VIDEO -> Icons.Default.PlayCircle; FileType.AUDIO -> Icons.Default.AudioFile
-                        FileType.DOCUMENT, FileType.TEXT -> Icons.Default.Description; FileType.PDF -> Icons.Default.PictureAsPdf; FileType.ARCHIVE -> Icons.Default.FolderZip; FileType.CODE -> Icons.Default.Code; FileType.PROJECT -> Icons.Default.LibraryMusic
+                        FileType.DOCUMENT, FileType.TEXT -> Icons.Default.Description; FileType.PDF -> Icons.Default.PictureAsPdf; FileType.ARCHIVE -> Icons.Default.FolderZip; FileType.CODE -> Icons.Default.Code; FileType.PROJECT -> Icons.Default.LibraryMusic; FileType.DATABASE -> Icons.Default.Storage
                         else -> Icons.Default.InsertDriveFile
                     },
                     null, modifier = Modifier.size(40.dp),

@@ -119,6 +119,7 @@ internal fun getFileIconAndColor(entry: FileSystemEntry): Pair<ImageVector, Colo
     FileType.TEXT, FileType.DOCUMENT -> Pair(Icons.Default.Description, TextSecondary)
     FileType.CODE -> Pair(Icons.Default.Code, Accent)
     FileType.PROJECT -> Pair(Icons.Default.LibraryMusic, AccentGreen)
+    FileType.DATABASE -> Pair(Icons.Default.Storage, Accent)
     else -> Pair(Icons.Default.InsertDriveFile, TextTertiary)
 }
 
