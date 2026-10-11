@@ -97,7 +97,17 @@ fun AudioSeekLine(modifier: Modifier = Modifier) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: if (s.duration > 0) (s.position.toFloat() / s.duration).coerceIn(0f, 1f) else 0f
     if (env != null) {
-        Waveform(env, frac, onSeek = { f -> s.seekTo((f * s.duration).toLong()) }, onScrub = { drag = it }, onScrubbing = { if (!it) drag = null }, modifier = modifier, height = 36.dp)
+        val dur = s.duration.coerceAtLeast(1).toFloat()
+        var last by remember { mutableLongStateOf(0L) }
+        Column(modifier) {
+            Waveform(
+                env, frac, onSeek = { f -> s.seekTo((f * s.duration).toLong()) },
+                onScrub = { f -> drag = f; val now = System.currentTimeMillis(); if (s.playing && now - last > 140) { last = now; s.seekTo((f * s.duration).toLong()) } },
+                onScrubbing = { if (!it) drag = null }, height = 36.dp,
+                loopA = s.loopA?.let { it / dur }, loopB = s.loopB?.let { it / dur },
+            )
+            LoopControls(s, cur?.let { DriveFileProvider.buildUri(it.inodeOid, it.path).toString() } ?: "", modifier = Modifier.padding(top = 4.dp))
+        }
         return
     }
     var width by remember { mutableIntStateOf(1) }

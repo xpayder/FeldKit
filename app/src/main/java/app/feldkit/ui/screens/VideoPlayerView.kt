@@ -67,6 +67,11 @@ abstract class TransportState {
     abstract fun toggle()
     abstract fun seekTo(ms: Long)
     abstract fun changeSpeed(s: Float)
+    /** A-B loop (milliseconds). Only the ExoPlayer engine acts on it. */
+    var loopA by mutableStateOf<Long?>(null)
+    var loopB by mutableStateOf<Long?>(null)
+    var loopOn by mutableStateOf(false)
+    open fun applyLoop() {}
     fun seekBy(d: Long) = seekTo(position + d)
 }
 
@@ -78,6 +83,17 @@ class PlayerState(val player: ExoPlayer) : TransportState() {
     override fun toggle() { if (ended) { player.seekTo(0); ended = false }; if (player.isPlaying) player.pause() else player.play() }
     override fun seekTo(ms: Long) { player.seekTo(ms.coerceIn(0, duration.coerceAtLeast(0))); position = ms }
     override fun changeSpeed(s: Float) { speed = s; player.setPlaybackSpeed(s) }
+
+    private var loopMessage: androidx.media3.exoplayer.PlayerMessage? = null
+    /** The jump back to A is a player message at B: it fires on the playback thread's clock, so the loop has no audible gap from polling. */
+    override fun applyLoop() {
+        loopMessage?.cancel(); loopMessage = null
+        val a = loopA; val b = loopB
+        if (!loopOn || a == null || b == null || b <= a) return
+        loopMessage = player.createMessage { _, _ -> player.seekTo(a) }
+            .setLooper(android.os.Looper.getMainLooper()).setPosition(b).setDeleteAfterDelivery(false).send()
+        if (player.currentPosition > b || player.currentPosition < a) player.seekTo(a)
+    }
 }
 
 /** Mirrors the ExoPlayer's state into this holder; returns a function that detaches the listener. */
@@ -131,19 +147,23 @@ fun rememberPlayerState(uri: Uri): PlayerState {
 internal fun TransportControls(
     s: TransportState, dragging: Boolean, onDrag: (Boolean) -> Unit, onPrev: (() -> Unit)?, onNext: (() -> Unit)?,
     modifier: Modifier = Modifier, compact: Boolean = false, onFullscreen: (() -> Unit)? = null, fullscreen: Boolean = false, onInteract: () -> Unit = {},
-    envelope: app.feldkit.audio.Envelope? = null
+    envelope: app.feldkit.audio.Envelope? = null, loopKey: String? = null
 ) {
     var speedMenu by remember { mutableStateOf(false) }
     var dragPos by remember { mutableFloatStateOf(0f) }
     val shown = if (dragging) dragPos else s.position.toFloat()
     val big = if (compact) 48.dp else 60.dp
     Column(modifier) {
+        var lastAudition by remember { mutableLongStateOf(0L) }
+        val dur = s.duration.coerceAtLeast(1).toFloat()
         if (envelope != null) Waveform(
-            envelope, (shown / s.duration.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f),
+            envelope, (shown / dur).coerceIn(0f, 1f),
             onSeek = { f -> s.seekTo((f * s.duration).toLong()); onInteract() },
-            onScrub = { f -> dragPos = f * s.duration; onInteract() },
+            // while the finger moves the sound follows in short bursts, like scrubbing a tape
+            onScrub = { f -> dragPos = f * s.duration; onInteract(); val now = System.currentTimeMillis(); if (s.playing && now - lastAudition > 140) { lastAudition = now; s.seekTo(dragPos.toLong()) } },
             onScrubbing = { on -> onDrag(on) },
             modifier = Modifier.padding(vertical = 6.dp),
+            loopA = s.loopA?.let { it / dur }, loopB = s.loopB?.let { it / dur },
         ) else Slider(
             value = shown.coerceIn(0f, s.duration.coerceAtLeast(1).toFloat()),
             onValueChange = { onDrag(true); dragPos = it; onInteract() },
@@ -156,6 +176,7 @@ internal fun TransportControls(
             Spacer(Modifier.weight(1f))
             Text(fmt(s.duration), color = TextTertiary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
         }
+        if (envelope != null && loopKey != null) LoopControls(s, loopKey, onInteract)
         Spacer(Modifier.height(if (compact) 2.dp else 6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Box {
@@ -302,6 +323,55 @@ fun AudioPlayerCard(uri: Uri, name: String, sizeText: String, onPrev: (() -> Uni
         if (s.error != null) {
             Text(s.error!!, color = AccentOrange, fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
             if (onOpenExternal != null) GlassButton(onClick = onOpenExternal) { Text("Open with another app") }
-        } else TransportControls(s, dragging, { dragging = it }, onPrev, onNext, Modifier.fillMaxWidth(), compact = true, envelope = rememberEnvelope(uri))
+        } else TransportControls(s, dragging, { dragging = it }, onPrev, onNext, Modifier.fillMaxWidth(), compact = true, envelope = rememberEnvelope(uri), loopKey = uri.toString())
     }
 }
+
+
+/** A and B markers, the loop switch and the speed of the player; the markers of a file are remembered under [key]. */
+@Composable
+fun LoopControls(s: TransportState, key: String, onInteract: () -> Unit = {}, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("loops", android.content.Context.MODE_PRIVATE) }
+    var speedMenu by remember { mutableStateOf(false) }
+    LaunchedEffect(s, key) {
+        s.loopA = null; s.loopB = null; s.loopOn = false; s.applyLoop()
+        try { prefs.getString(key, null)?.split(',')?.let { if (it.size == 2) { s.loopA = it[0].toLong(); s.loopB = it[1].toLong(); s.loopOn = true; s.applyLoop() } } } catch (_: Exception) {}
+    }
+    val a = s.loopA; val b = s.loopB
+    LaunchedEffect(a, b) {
+        try { prefs.edit().apply { if (a != null && b != null) putString(key, "$a,$b") else remove(key) }.apply() } catch (_: Exception) {}
+    }
+    @Composable fun Chip(on: Boolean, click: () -> Unit, content: @Composable () -> Unit) = Box(
+        Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) Accent else Fill2).clickable { click(); onInteract() }.padding(horizontal = 10.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) { content() }
+    val looping = s.loopOn && a != null && b != null
+    Row(modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Chip(a != null, { s.loopA = s.position; if (s.loopB != null && s.loopB!! <= s.position) s.loopB = null; s.applyLoop() }) {
+            Text(if (a != null) "A ${mmss(a)}" else "A", color = if (a != null) DeepNavy else TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, softWrap = false, maxLines = 1)
+        }
+        Chip(b != null, {
+            val start = s.loopA ?: 0L
+            if (s.position > start) { s.loopA = start; s.loopB = s.position; s.loopOn = true; s.applyLoop() }
+        }) { Text(if (b != null) "B ${mmss(b)}" else "B", color = if (b != null) DeepNavy else TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, softWrap = false, maxLines = 1) }
+        Chip(looping, { if (a != null && b != null) { s.loopOn = !s.loopOn; s.applyLoop() } }) {
+            Icon(Icons.Default.Repeat, "Loop A to B", tint = if (looping) DeepNavy else TextPrimary, modifier = Modifier.size(16.dp))
+        }
+        if (a != null || b != null) Chip(false, { s.loopA = null; s.loopB = null; s.loopOn = false; s.applyLoop() }) { Icon(Icons.Default.Close, "Clear loop", tint = TextSecondary, modifier = Modifier.size(16.dp)) }
+        Spacer(Modifier.weight(1f))
+        Box {
+            Chip(s.speed != 1f, { speedMenu = true }) {
+                Text("${if (s.speed % 1f == 0f) s.speed.toInt().toString() else s.speed.toString()}x", color = if (s.speed != 1f) DeepNavy else TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, softWrap = false, maxLines = 1)
+            }
+            if (speedMenu) app.feldkit.ui.components.GlassMenu(onDismissRequest = { speedMenu = false }, alignment = Alignment.BottomEnd, edgePadding = 120.dp) {
+                listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f).forEach { sp ->
+                    app.feldkit.ui.components.GlassMenuItem("${sp}x", tint = if (sp == s.speed) Accent else TextPrimary) { s.changeSpeed(sp); speedMenu = false }
+                }
+            }
+        }
+    }
+}
+
+/** Short time for the loop chips: 0:14, 12:05. */
+private fun mmss(ms: Long): String { val t = (ms / 1000).coerceAtLeast(0); return "%d:%02d".format(t / 60, t % 60) }
