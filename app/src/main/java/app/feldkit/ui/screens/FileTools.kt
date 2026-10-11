@@ -232,6 +232,7 @@ fun MediaInfoSheet(uri: Uri, name: String, onDismiss: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             val ext = uri.getQueryParameter("path")?.substringAfterLast('.', "")?.lowercase().orEmpty()
             if (ext in AudioTempoExt) TempoSection(uri)
+            if (ext == "wav" || ext == "wave" || ext == "bwf") WavMetaSection(uri)
             val g = groups
             when {
                 g == null -> CircularProgressIndicator(color = Accent, modifier = Modifier.padding(16.dp).size(24.dp))
@@ -401,6 +402,21 @@ private fun TempoSection(uri: Uri) {
         Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
             Text("In the file", color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
             Text("${fmtBpm(t.bpm)}  (${t.source})", color = TextPrimary, fontSize = 13.sp, fontFamily = Mono, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+/** Fields the WAV carries about itself: broadcast and field-recorder metadata, sampler and Acid loop data, markers. */
+@Composable
+private fun WavMetaSection(uri: Uri) {
+    val ctx = LocalContext.current
+    val rows by produceState<List<app.feldkit.audio.AudioMeta.Row>>(emptyList(), uri) { value = withContext(Dispatchers.IO) { app.feldkit.audio.AudioMeta.read(ctx, uri) } }
+    if (rows.isEmpty()) return
+    Text("IN THE WAV FILE", color = Accent, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+    rows.forEach { r ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+            Text(r.label, color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
+            Text(r.value, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
         }
     }
 }
