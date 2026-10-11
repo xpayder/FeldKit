@@ -28,6 +28,12 @@ corrupted. No paid "drive reader" subscription needed.
 | "view RAW photos / PSD / EXIF from a card on my phone" | viewer with zoom and an EXIF panel |
 | "unzip / unrar from an external drive on Android" | built-in archive browser and extractor |
 
+## For developers
+
+- **Source code you can read.** Syntax colours for Kotlin, Java, C/C++, C#, JavaScript/TypeScript, Python, Rust, Go, Swift, shell, Ruby, PHP, Lua, SQL, CSS, JSON, XML/HTML, Markdown, YAML, TOML, INI, Makefile and Dockerfile (by extension or `#!` line), with line numbers.
+- **Search in the file:** plain text or regular expression, with or without case, next/previous, every match highlighted, and `:123` to jump to a line.
+- **Edit a text file on the drive** (writable drives, up to 512 KB). Undo and redo, a confirmation before saving, and a careful save: the file must be unchanged since you opened it, its old content is kept inside FeldKit, the new content is written beside it and read back byte for byte, and only then replaces the original (the encoding, BOM and line endings are kept). If anything fails the original stays as it was; the history button in the editor loads the version from before the last save.
+
 ## For photographers
 
 - **Cull a shoot on the phone.** In any folder with pictures, menu > "Cull photos": swipe through the folder, give stars, reject, flag a pick and set a colour label. Filters (all, picked, not rated, 3 stars and up, rejected) and a counter ("123 / 540") keep long shoots manageable, and "save these photos" copies exactly what the filter shows, together with their `.xmp` files.

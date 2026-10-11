@@ -217,6 +217,8 @@ class MainActivity : ComponentActivity() {
                             siblings = browserEntries.filter { it.fileType == previewEntry.fileType && !it.isDirectory }.ifEmpty { listOf(previewEntry) },
                             canDelete = browserWritable,
                             onDelete = { fileBrowserViewModel.deleteEntries(listOf(it)) },
+                            onSaveText = { e, bytes -> fileBrowserViewModel.saveTextFile(applicationContext, e, bytes, e.size, e.modifiedAt) },
+                            previousVersionOf = { fileBrowserViewModel.previousVersion(applicationContext, it.path) },
                             onNavigateBack = { currentScreen = Screen.FileBrowser(0) }
                         )
                     }

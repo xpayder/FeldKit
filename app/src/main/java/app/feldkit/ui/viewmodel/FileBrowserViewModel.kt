@@ -280,7 +280,52 @@ class FileBrowserViewModel : ViewModel() {
     // ── Write operations ──────────────────────────────────────────────────────
 
     /** Directory entry for [path] (usable as a write parent), or null if it can't be resolved. */
-    private val xmpLock = kotlinx.coroutines.sync.Mutex()
+    private val driveEditLock = kotlinx.coroutines.sync.Mutex()
+
+    // ── Editing a text file on the drive ──────────────────────────────────────
+
+    private fun backupDir(context: Context) = java.io.File(context.filesDir, "edit-backups").also { it.mkdirs() }
+    private fun backupPrefix(path: String): String = java.security.MessageDigest.getInstance("SHA-1").digest("${ActiveDriveSession.volumes.getOrNull(currentVolumeIndex)?.name}|$path".toByteArray()).joinToString("") { "%02x".format(it) }.take(16)
+
+    /** The newest copy FeldKit kept of this file before a save, or null. */
+    fun previousVersion(context: Context, path: String): java.io.File? =
+        backupDir(context).listFiles { f -> f.name.startsWith(backupPrefix(path) + "_") }?.maxByOrNull { it.name }
+
+    /**
+     * Replaces the file with [bytes] safely: the file must be unchanged since it was opened ([expectedSize] / [expectedModified]), its
+     * old content is kept inside FeldKit, the new content is written under a temporary name and read back byte for byte, and only
+     * then does it take the original's place. Returns null on success, otherwise a message; the original stays intact on failure.
+     */
+    suspend fun saveTextFile(context: Context, entry: FileSystemEntry, bytes: ByteArray, expectedSize: Long, expectedModified: Long): String? = driveEditLock.withLock {
+        withContext(Dispatchers.IO) {
+            val w = ActiveDriveSession.writer ?: return@withContext "This drive is mounted read-only"
+            val r = reader ?: return@withContext "No drive"
+            try {
+                val dir = entry.path.substringBeforeLast('/').ifEmpty { "/" }
+                val fresh = r.listDirectory(currentVolumeIndex, dir).firstOrNull { !it.isDirectory && it.name == entry.name } ?: return@withContext "The file is no longer on the drive"
+                if (fresh.size != expectedSize || (expectedModified > 0 && fresh.modifiedAt != expectedModified)) return@withContext "The file changed on the drive after you opened it. Nothing was saved."
+                val old = r.readFile(fresh) ?: return@withContext "Could not read the current file"
+                java.io.File(backupDir(context), backupPrefix(entry.path) + "_" + System.currentTimeMillis()).writeBytes(old)
+                backupDir(context).listFiles { f -> f.name.startsWith(backupPrefix(entry.path) + "_") }?.sortedBy { it.name }?.dropLast(10)?.forEach { it.delete() }
+                val parent = resolveDirEntry(dir) ?: return@withContext "Could not open the folder"
+                val tmpName = entry.name + ".feldkit-tmp"
+                r.listDirectory(currentVolumeIndex, dir).firstOrNull { it.name == tmpName }?.let { w.deleteEntry(it) }
+                if (!w.writeFile(parent, tmpName, bytes)) return@withContext "Could not write to the drive (is it full?)"
+                val tmp = r.listDirectory(currentVolumeIndex, dir).firstOrNull { it.name == tmpName } ?: return@withContext "The new copy did not appear on the drive"
+                val back = r.readFile(tmp)
+                if (back == null || !back.contentEquals(bytes)) { w.deleteEntry(tmp); return@withContext "The copy written to the drive did not match; the original was left as it was" }
+                val original = r.listDirectory(currentVolumeIndex, dir).firstOrNull { !it.isDirectory && it.name == entry.name } ?: return@withContext "The file vanished while saving"
+                if (!w.deleteEntry(original)) { w.deleteEntry(tmp); return@withContext "Could not replace the file" }
+                if (!w.renameEntry(tmp, entry.name)) {
+                    // put the old content back so the file is never lost
+                    w.writeFile(parent, entry.name, old); r.listDirectory(currentVolumeIndex, dir).firstOrNull { it.name == tmpName }?.let { w.deleteEntry(it) }
+                    return@withContext "Could not finish the replacement; the previous version was restored"
+                }
+                withContext(Dispatchers.Main) { loadDirectory(currentPath) }
+                null
+            } catch (e: Exception) { Log.w(TAG, "saveTextFile failed", e); "Saving failed: ${e.message}" }
+        }
+    }
 
     /** The rating / label / text of an XMP sidecar on the drive. */
     suspend fun readXmp(entry: FileSystemEntry): app.feldkit.photo.Xmp.Data? = withContext(Dispatchers.IO) {
@@ -293,7 +338,7 @@ class FileBrowserViewModel : ViewModel() {
      * Sets rating and label in the photo's `.xmp` sidecar (same folder, same name). An existing sidecar is edited in place,
      * a missing one is created, and nothing is created for a photo that has no marks.
      */
-    suspend fun writeXmp(photo: FileSystemEntry, rating: Int, label: String?): Boolean = xmpLock.withLock {
+    suspend fun writeXmp(photo: FileSystemEntry, rating: Int, label: String?): Boolean = driveEditLock.withLock {
         withContext(Dispatchers.IO) {
             val w = ActiveDriveSession.writer ?: return@withContext false
             val r = reader ?: return@withContext false

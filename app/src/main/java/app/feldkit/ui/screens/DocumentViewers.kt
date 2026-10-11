@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -54,10 +56,19 @@ private val Mono = FontFamily.Monospace
 
 /** Plain-text / source viewer: first 512 KB, selectable, line-numbered for code. */
 @Composable
-fun TextViewer(uri: Uri, modifier: Modifier = Modifier, lineNumbers: Boolean) = app.feldkit.ui.components.ViewerPanel(modifier) { TextViewerBody(uri, Modifier.fillMaxSize(), lineNumbers) }
+fun TextViewer(uri: Uri, modifier: Modifier = Modifier, lineNumbers: Boolean, edit: TextEditSupport? = null) = app.feldkit.ui.components.ViewerPanel(modifier) { TextViewerBody(uri, Modifier.fillMaxSize(), lineNumbers, edit) }
+
+/** What the viewer needs to offer editing of a file on a writable drive. */
+class TextEditSupport(
+    val entry: FileSystemEntry,
+    /** Writes the new bytes safely; null on success, otherwise the reason it failed. */
+    val save: suspend (ByteArray) -> String?,
+    val previousVersion: () -> java.io.File?,
+    val onSaved: () -> Unit,
+)
 
 @Composable
-private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
+private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean, edit: TextEditSupport?) {
     val ctx = LocalContext.current
     var lines by remember(uri) { mutableStateOf<List<String>?>(null) }
     var truncated by remember(uri) { mutableStateOf(false) }
@@ -85,6 +96,74 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
     val l = lines
     if (l == null) { Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }; return }
 
+    // ── editing ──
+    var doc by remember(uri) { mutableStateOf<app.feldkit.code.TextDoc?>(null) }
+    var history by remember(uri) { mutableStateOf<app.feldkit.code.EditHistory?>(null) }
+    var field by remember(uri) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
+    var confirmSave by remember(uri) { mutableStateOf(false) }
+    var confirmDiscard by remember(uri) { mutableStateOf(false) }
+    var saving by remember(uri) { mutableStateOf(false) }
+    var editMessage by remember(uri) { mutableStateOf<String?>(null) }
+    val editScope = rememberCoroutineScope()
+    val editing = doc != null
+    val dirty = doc != null && history != null && history!!.current != doc!!.text
+    fun startEditing() {
+        editScope.launch {
+            val bytes = withContext(Dispatchers.IO) { try { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (_: Exception) { null } }
+            val d = bytes?.let { app.feldkit.code.TextDoc.decode(it) }
+            if (d == null) editMessage = "This file cannot be edited as text (binary, not UTF-8, or too large)."
+            else { doc = d; history = app.feldkit.code.EditHistory(d.text); field = androidx.compose.ui.text.input.TextFieldValue(d.text) }
+        }
+    }
+    fun applyEdit(v: androidx.compose.ui.text.input.TextFieldValue) { field = v; history?.edit(v.text, System.currentTimeMillis()) }
+    fun setFromHistory(t: String?) { if (t != null) field = androidx.compose.ui.text.input.TextFieldValue(t, androidx.compose.ui.text.TextRange(t.length)) }
+    androidx.activity.compose.BackHandler(enabled = editing) { if (dirty) confirmDiscard = true else { doc = null; history = null } }
+
+    if (editing) {
+        Column(modifier) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { setFromHistory(history?.undo()) }, enabled = history?.canUndo == true) { Icon(Icons.Default.Undo, "Undo", tint = if (history?.canUndo == true) TextPrimary else TextDisabled) }
+                IconButton(onClick = { setFromHistory(history?.redo()) }, enabled = history?.canRedo == true) { Icon(Icons.Default.Redo, "Redo", tint = if (history?.canRedo == true) TextPrimary else TextDisabled) }
+                if (edit?.previousVersion?.invoke() != null) IconButton(onClick = {
+                    edit?.previousVersion?.invoke()?.let { f -> app.feldkit.code.TextDoc.decode(f.readBytes())?.let { applyEdit(androidx.compose.ui.text.input.TextFieldValue(it.text)) } }
+                }) { Icon(Icons.Default.History, "Load the version from before the last save", tint = TextSecondary) }
+                Spacer(Modifier.weight(1f))
+                Text(if (dirty) "edited" else "no changes", color = if (dirty) AccentAmber else TextTertiary, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
+                IconButton(onClick = { if (dirty) confirmDiscard = true else { doc = null; history = null } }) { Icon(Icons.Default.Close, "Stop editing", tint = TextSecondary) }
+                IconButton(onClick = { confirmSave = true }, enabled = dirty && !saving) { Icon(Icons.Default.Check, "Save", tint = if (dirty && !saving) Accent else TextDisabled) }
+            }
+            androidx.compose.foundation.text.BasicTextField(
+                field, { applyEdit(it) }, textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 13.sp, fontFamily = Mono, lineHeight = 18.sp),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+        }
+        if (confirmSave) app.feldkit.ui.components.GlassDialog(
+            onDismissRequest = { confirmSave = false },
+            title = { Text("Save changes?", color = TextPrimary) },
+            text = { Text("\"${edit?.entry?.name}\" on the drive will be replaced. The new version is written next to it and checked byte for byte first, and the previous version stays available inside FeldKit.", color = TextSecondary) },
+            confirmButton = { TextButton(onClick = {
+                confirmSave = false; saving = true
+                editScope.launch {
+                    val msg = edit?.save?.invoke(doc!!.encode(history!!.current)) ?: "Editing is not available here"
+                    saving = false
+                    if (msg == null) edit?.onSaved?.invoke() else editMessage = msg
+                }
+            }) { Text("Save", color = Accent) } },
+            dismissButton = { TextButton(onClick = { confirmSave = false }) { Text("Cancel", color = TextTertiary) } },
+        )
+        if (confirmDiscard) app.feldkit.ui.components.GlassDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard changes?", color = TextPrimary) },
+            text = { Text("Your edits to this file will be lost.", color = TextSecondary) },
+            confirmButton = { TextButton(onClick = { confirmDiscard = false; doc = null; history = null }) { Text("Discard", color = AccentRed) } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing", color = TextTertiary) } },
+        )
+        editMessage?.let { m -> app.feldkit.ui.components.GlassDialog(onDismissRequest = { editMessage = null }, title = { Text("Not saved", color = TextPrimary) }, text = { Text(m, color = TextSecondary) }, confirmButton = { TextButton(onClick = { editMessage = null }) { Text("OK", color = Accent) } }) }
+        return
+    }
+    editMessage?.let { m -> app.feldkit.ui.components.GlassDialog(onDismissRequest = { editMessage = null }, title = { Text("Cannot edit", color = TextPrimary) }, text = { Text(m, color = TextSecondary) }, confirmButton = { TextButton(onClick = { editMessage = null }) { Text("OK", color = Accent) } }) }
+
     // ── search ──
     var searching by remember(uri) { mutableStateOf(false) }
     var query by remember(uri) { mutableStateOf("") }
@@ -105,7 +184,7 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
 
     Box(modifier) {
         SelectionContainer {
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 6.dp), state = listState, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = if (searching) 62.dp else 14.dp, bottom = 14.dp)) {
+            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 6.dp), state = listState, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = if (searching) 62.dp else 52.dp, bottom = 14.dp)) {
                 itemsIndexed(l) { i, line ->
                     Row {
                         if (lineNumbers) Text("${i + 1}", color = TextDisabled, fontSize = 11.sp, fontFamily = Mono, lineHeight = 17.sp, modifier = Modifier.width(36.dp).padding(end = 8.dp))
@@ -123,7 +202,10 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
             }
         }
         if (!searching) {
-            IconButton(onClick = { searching = true }, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) { Icon(Icons.Default.Search, "Search in file", tint = TextSecondary) }
+            Row(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                if (edit != null && !truncated) IconButton(onClick = { startEditing() }) { Icon(Icons.Default.Edit, "Edit", tint = TextSecondary) }
+                IconButton(onClick = { searching = true }) { Icon(Icons.Default.Search, "Search in file", tint = TextSecondary) }
+            }
         } else {
             Row(
                 Modifier.align(Alignment.TopCenter).padding(8.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xE60B1016)).padding(horizontal = 8.dp, vertical = 4.dp),
