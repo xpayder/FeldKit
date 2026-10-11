@@ -13,12 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
-      - uses: android-actions/setup-android@v3
       - name: Android NDK and CMake
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "ndk;28.2.13676358" "cmake;3.22.1" "build-tools;37.0.0" >/dev/null
-          sdkmanager "platforms;android-37.0" >/dev/null || true    # otherwise the Android Gradle plugin downloads the platform itself
+          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          yes | "$SDKM" --licenses >/dev/null || true
+          "$SDKM" "ndk;28.2.13676358" "cmake;3.22.1" "build-tools;37.0.0" >/dev/null
+          "$SDKM" "platforms;android-37.0" >/dev/null || true    # otherwise the Android Gradle plugin downloads the platform itself
       - uses: gradle/actions/setup-gradle@v4
       # the disk-image tests skip themselves when the fixtures (tools/*) are not built; the pure-logic tests always run
       - run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
