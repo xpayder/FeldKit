@@ -8,7 +8,7 @@ import app.feldkit.storage.filesystem.VolumeInfo
 
 /**
  * ext2 / ext3 / ext4 reader (read-only): classic block maps and extent trees, 32- and 64-bit group descriptors, flex_bg,
- * hash-tree directories (read linearly), sparse and uninitialised extents, fast symlinks, small inline-data files.
+ * hash-tree directories (read linearly; the writer turns them into plain ones when it changes them), sparse and uninitialised extents, fast symlinks, small inline-data files.
  * Files are streamed: nothing is loaded whole.
  */
 class ExtReader(
@@ -22,6 +22,8 @@ class ExtReader(
         private const val FL_INLINE = 0x10000000
     }
 
+    /** Set by the mounter when the writer refuses this volume (shown on the drive card). */
+    var writeRefusal: String? = null
     private var sb: ExtSuperblock? = null
     private var bs = 1024
     private val blockCache = object : LinkedHashMap<Long, ByteArray>(64, 0.75f, true) { override fun removeEldestEntry(e: MutableMap.MutableEntry<Long, ByteArray>?) = size > 256 }
@@ -70,7 +72,8 @@ class ExtReader(
                 name = s.volumeName.ifEmpty { if (s.hasExtents) "ext4 volume" else "ext2/3 volume" },
                 type = if (s.hasExtents) "ext4" else "ext2/3",
                 totalBlocks = s.blocksCount, blockSize = s.blockSize.toLong(), freeBlocks = s.freeBlocks, freeKnown = true,
-                numFiles = (s.inodesCount - s.freeInodes).coerceAtLeast(0)
+                numFiles = (s.inodesCount - s.freeInodes).coerceAtLeast(0),
+                readOnlyReason = writeRefusal?.let { "Read only: $it." } ?: ""
             )
         )
     }
@@ -262,6 +265,18 @@ class ExtReader(
         val b = readData(mapOf(ino), offset, n) ?: return -1
         System.arraycopy(b, 0, buf, bufOff, b.size)
         return b.size
+    }
+
+    /** The raw superblock (1024 bytes at offset 1024), for the writer's checks. */
+    fun superblockBytes(): ByteArray? = readBytes(1024, 1024)
+
+    override fun rootEntry(volumeIndex: Int) = FileSystemEntry(name = "/", path = "/", isDirectory = true, size = 0, createdAt = 0, modifiedAt = 0, inodeOid = ROOT_INO)
+
+    /** After the writer changed the volume: forget everything cached and re-read the superblock (free counts). */
+    fun invalidate() {
+        synchronized(blockCache) { blockCache.clear() }
+        dirCache.clear()
+        readBytes(1024, 1024)?.let { ExtSuperblockParser.parse(it) }?.let { sb = it }
     }
 
     override fun unmount() { blockCache.clear(); dirCache.clear(); sb = null }

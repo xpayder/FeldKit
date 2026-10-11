@@ -13,7 +13,9 @@ data class VolumeInfo(
     /** true when [freeBlocks] is an actual measurement (0 free is then a real value). */
     val freeKnown: Boolean = false,
     /** "FileVault" / "BitLocker" when the volume is encrypted (shown on the drive card and the unlock screen). */
-    val encryption: String = ""
+    val encryption: String = "",
+    /** Why this volume is mounted read-only although its format could be written (e.g. an ext volume whose journal needs recovery). */
+    val readOnlyReason: String = ""
 ) {
     val usedFraction: Float get() = if (freeKnown && totalBlocks > 0) ((totalBlocks - freeBlocks).toFloat() / totalBlocks).coerceIn(0f, 1f) else 0f
     val usedSize: Long get() = if (freeKnown) (totalBlocks - freeBlocks).coerceAtLeast(0) * blockSize else 0L

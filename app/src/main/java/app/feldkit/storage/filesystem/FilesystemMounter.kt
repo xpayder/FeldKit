@@ -9,6 +9,7 @@ import app.feldkit.storage.filesystem.apfs.ApfsVolumeSuperblockParser
 import app.feldkit.storage.filesystem.apfs.ApfsReader
 import app.feldkit.storage.filesystem.apfs.ApfsWriter
 import app.feldkit.storage.filesystem.exfat.ExFatReader
+import app.feldkit.storage.filesystem.ext.ExtWriter
 import app.feldkit.storage.filesystem.exfat.ExFatWriter
 import app.feldkit.storage.filesystem.fat32.Fat32Reader
 import app.feldkit.storage.filesystem.fat32.Fat32Writer
@@ -29,6 +30,8 @@ object FilesystemMounter {
     @Volatile var enableNtfsWrite: Boolean = false
     /** Opt-in switch for writing through unlocked BitLocker and LUKS containers (Settings > Experimental). */
     @Volatile var enableEncryptedWrite: Boolean = false
+    /** Opt-in switch for the experimental ext2/3/4 writer (Settings > Experimental). */
+    @Volatile var enableExtWrite: Boolean = false
     private const val TAG = "FeldKit"
 
     /** A filesystem found on the device (one per partition; APFS may expose several volumes). */
@@ -201,6 +204,10 @@ object FilesystemMounter {
         val reader = ExtReader(device, lba)
         if (!reader.mount()) return null
         Log.i(TAG, "ext at LBA $lba")
-        return Pair(reader, null) // ext write not implemented
+        // the writer checks the volume itself (clean journal, no unsupported features) and refuses to write otherwise
+        val sbRaw = reader.superblockBytes()
+        val reason = sbRaw?.let { ExtWriter.refusal(it) }
+        if (reason != null) { Log.i(TAG, "ext: read-only ($reason)"); reader.writeRefusal = reason }
+        return Pair(reader, if (sbRaw != null && reason == null && (enableExtWrite)) ExtWriter(device, lba, reader) else null)
     }
 }

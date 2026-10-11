@@ -86,7 +86,16 @@ fun DriveCard(
             }
         } else Spacer(Modifier.height(12.dp))
 
-        if (!locked && !writable && onEnableWrite != null) {
+        if (!locked && !writable && volume.readOnlyReason.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp).clip(RoundedCornerShape(12.dp)).background(AccentOrange.copy(alpha = 0.10f)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Info, null, tint = AccentOrange, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(volume.readOnlyReason, color = TextSecondary, fontSize = 12.sp, lineHeight = 16.sp)
+            }
+        } else if (!locked && !writable && onEnableWrite != null) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp).clip(RoundedCornerShape(12.dp)).background(AccentOrange.copy(alpha = 0.10f))
                     .clickable(onClick = onEnableWrite).padding(12.dp),

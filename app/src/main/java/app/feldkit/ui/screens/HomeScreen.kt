@@ -174,7 +174,7 @@ private fun ConnectedView(
             val writable = (state.reader as? app.feldkit.storage.filesystem.CompositeReader)?.writerFor(idx) != null || (state.reader !is app.feldkit.storage.filesystem.CompositeReader && state.writer != null)
             DriveCard(
                 volume = vol, writable = writable, locked = state.reader.isLocked(idx), onOpen = { onBrowseVolume(vol, idx) }, onEject = onEject,
-                onEnableWrite = if (!writable && (vol.type.equals("APFS", true) || vol.type.equals("NTFS", true)) && !vol.isEncrypted) onOpenSettings else null
+                onEnableWrite = if (!writable && vol.readOnlyReason.isEmpty() && ((vol.type.equals("APFS", true) || vol.type.equals("NTFS", true) || vol.type.startsWith("ext", true)) || (vol.isEncrypted && !state.reader.isLocked(idx) && vol.type != "FileVault"))) onOpenSettings else null
             )
         }
         if (state.volumes.isEmpty()) {

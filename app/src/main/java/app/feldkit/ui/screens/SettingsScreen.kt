@@ -58,6 +58,8 @@ fun SettingsScreen(
                     var confirmApfs by remember { mutableStateOf(false) }
                     var ntfsWrite by remember { mutableStateOf(prefs.getBoolean("ntfs_write", false)) }
                     var confirmNtfs by remember { mutableStateOf(false) }
+                    var extWrite by remember { mutableStateOf(prefs.getBoolean("ext_write", false)) }
+                    var confirmExt by remember { mutableStateOf(false) }
                     var encWrite by remember { mutableStateOf(prefs.getBoolean("encrypted_write", false)) }
                     var confirmEnc by remember { mutableStateOf(false) }
                     SettingsSection(title = "Experimental") {
@@ -77,10 +79,30 @@ fun SettingsScreen(
                         )
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
+                            title = "Write to ext2 / ext3 / ext4 drives",
+                            subtitle = "Creates, renames and deletes files and folders on Linux drives, writing directly without the journal. Checked with e2fsck and a real Linux kernel on many variants (ext2, ext3, ext4, 1 and 4 KiB blocks, with and without checksums). It refuses drives whose journal needs recovery or that use features it cannot keep consistent (quota, bigalloc, encryption). Keep a backup. Applies the next time you connect a drive.",
+                            checked = extWrite,
+                            onToggle = { if (extWrite) { extWrite = false; prefs.edit().putBoolean("ext_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableExtWrite = false } else confirmExt = true }
+                        )
+                        SettingsToggleRow(
+                            icon = Icons.Default.Warning,
                             title = "Write to BitLocker and LUKS volumes",
                             subtitle = "After you unlock an encrypted drive, FeldKit can write to the file system inside (exFAT, FAT32, NTFS if enabled above, ext if enabled) and encrypts every sector on its way to the drive. Checked against dislocker and cryptsetup, not against Windows or Linux themselves. A power loss or unplugging during a write can leave the volume needing repair. Keep a backup. Applies the next time you connect a drive.",
                             checked = encWrite,
                             onToggle = { if (encWrite) { encWrite = false; prefs.edit().putBoolean("encrypted_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableEncryptedWrite = false } else confirmEnc = true }
+                        )
+                    }
+                    if (confirmExt) {
+                        GlassDialog(
+                            onDismissRequest = { confirmExt = false },
+                            title = { Text("Enable ext writing?", color = TextPrimary) },
+                            text = { Text("This is experimental. Use it only on drives you have backed up, shut the drive down cleanly on Linux first, and never unplug it during a transfer.", color = TextSecondary) },
+                            confirmButton = { TextButton(onClick = {
+                                extWrite = true; confirmExt = false
+                                prefs.edit().putBoolean("ext_write", true).apply()
+                                app.feldkit.storage.filesystem.FilesystemMounter.enableExtWrite = true
+                            }) { Text("Enable", color = Accent) } },
+                            dismissButton = { TextButton(onClick = { confirmExt = false }) { Text("Cancel", color = TextTertiary) } }
                         )
                     }
                     if (confirmEnc) {
