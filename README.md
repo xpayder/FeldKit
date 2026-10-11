@@ -31,6 +31,7 @@ corrupted. No paid "drive reader" subscription needed.
 ## For photographers
 
 - **Cull a shoot on the phone.** In any folder with pictures, menu > "Cull photos": swipe through the folder, give stars, reject, flag a pick and set a colour label. Filters (all, picked, not rated, 3 stars and up, rejected) and a counter ("123 / 540") keep long shoots manageable, and "save these photos" copies exactly what the filter shows, together with their `.xmp` files.
+- **Histogram and location.** The photo info sheet shows an RGB and luminance histogram with a warning when shadows or highlights are clipped, and an "Open in Maps" link next to the GPS position.
 - **Ratings travel with the files.** When the drive can be written, stars and labels are saved as `.xmp` sidecars next to the photos (`xmp:Rating`, `xmp:Label`), the same fields Lightroom, Bridge and Capture One read. An existing sidecar is edited in place, so develop settings and keywords in it stay untouched (checked with `exiftool`). On a read-only drive the marks stay in FeldKit.
 
 ## For people who make music

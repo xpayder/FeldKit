@@ -9,13 +9,21 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -123,7 +131,39 @@ fun RawImage(uri: Uri, thumb: Boolean, modifier: Modifier = Modifier, contentSca
     else Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) }
 }
 
-private class ExifRow(val label: String, val value: String)
+private class ExifRow(val label: String, val value: String, val geo: DoubleArray? = null)
+
+/** A small picture (about 600 px) for the histogram: a RAW's embedded preview, or the image decoded at reduced size. */
+private suspend fun histogramOf(ctx: Context, uri: Uri, name: String): app.feldkit.photo.Histogram? = withContext(Dispatchers.IO) {
+    try {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val bmp = if (ext in app.feldkit.storage.filesystem.FileSystemEntry.RAW_EXT || ext == "psd") RawPreview.load(ctx, uri, thumb = true, psd = ext == "psd")
+        else {
+            val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o) }
+            var sample = 1; while (maxOf(o.outWidth, o.outHeight) / sample > 800) sample *= 2
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
+        } ?: return@withContext null
+        val px = IntArray(bmp.width * bmp.height); bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        app.feldkit.photo.Histogram.of(px)
+    } catch (_: Throwable) { null }
+}
+
+@Composable
+private fun HistogramView(h: app.feldkit.photo.Histogram) {
+    val cap = remember(h) { h.luma.sortedArray().let { it[(it.size * 0.99).toInt().coerceAtMost(255)] }.coerceAtLeast(1) }
+    Canvas(Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x14FFFFFF))) {
+        fun path(a: IntArray, close: Boolean): Path = Path().apply {
+            if (close) moveTo(0f, size.height)
+            for (i in 0..255) { val x = i / 255f * size.width; val y = size.height - (a[i].coerceAtMost(cap).toFloat() / cap) * size.height * 0.94f; if (i == 0 && !close) moveTo(x, y) else lineTo(x, y) }
+            if (close) { lineTo(size.width, size.height); close() }
+        }
+        drawPath(path(h.luma, true), Color(0x40FFFFFF))
+        drawPath(path(h.r, false), Color(0xCCFF6B5E), style = Stroke(1.5f))
+        drawPath(path(h.g, false), Color(0xCC8CE0A8), style = Stroke(1.5f))
+        drawPath(path(h.b, false), Color(0xCC6FA8FF), style = Stroke(1.5f))
+    }
+}
 private class ExifGroup(val title: String, val rows: List<ExifRow>)
 
 private fun readExif(ctx: Context, uri: Uri): List<ExifGroup> {
@@ -163,7 +203,7 @@ private fun readExif(ctx: Context, uri: Uri): List<ExifGroup> {
     )
     val whenWhere = listOfNotNull(
         (a(ExifInterface.TAG_DATETIME_ORIGINAL) ?: a(ExifInterface.TAG_DATETIME))?.let { ExifRow("Taken", it.replaceFirst(':', '-').replaceFirst(':', '-')) },
-        e.latLong?.let { ExifRow("Location", "%.5f, %.5f".format(it[0], it[1])) },
+        e.latLong?.let { ExifRow("Location", "%.5f, %.5f".format(java.util.Locale.US, it[0], it[1]), geo = it) },
         e.getAltitude(Double.NaN).takeIf { !it.isNaN() }?.let { ExifRow("Altitude", "%.0f m".format(it)) }
     )
     return listOf(ExifGroup("Camera", camera), ExifGroup("Exposure", exposure), ExifGroup("Image", image), ExifGroup("When & where", whenWhere)).filter { it.rows.isNotEmpty() }
@@ -179,6 +219,17 @@ fun ExifSheet(uri: Uri, name: String, onDismiss: () -> Unit) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
             Text(name, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Spacer(Modifier.height(14.dp))
+            val hist by produceState<app.feldkit.photo.Histogram?>(null, uri) { value = histogramOf(ctx, uri, name) }
+            hist?.let { h ->
+                Text("HISTOGRAM", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(bottom = 6.dp))
+                HistogramView(h)
+                val warn = listOfNotNull(
+                    if (h.shadowClip > 0.01) "Shadows clipped: %.1f %%".format(java.util.Locale.US, h.shadowClip * 100) else null,
+                    if (h.highlightClip > 0.01) "Highlights clipped: %.1f %%".format(java.util.Locale.US, h.highlightClip * 100) else null,
+                )
+                if (warn.isNotEmpty()) Text(warn.joinToString("   "), color = AccentOrange, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                Spacer(Modifier.height(6.dp))
+            }
             val g = groups
             when {
                 g == null -> CircularProgressIndicator(color = Accent, modifier = Modifier.padding(16.dp).size(24.dp))
@@ -189,6 +240,11 @@ fun ExifSheet(uri: Uri, name: String, onDismiss: () -> Unit) {
                         Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
                             Text(r.label, color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
                             Text(r.value, color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                            r.geo?.let { ll ->
+                                Text("Open in Maps", color = Accent, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                    try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("geo:${ll[0]},${ll[1]}?q=${ll[0]},${ll[1]}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+                                })
+                            }
                         }
                     }
                 }
