@@ -62,7 +62,18 @@ class FileBrowserViewModel : ViewModel() {
     fun consumeMessage() { _message.value = null }
 
     private var appCtx: Context? = null
-    fun attach(ctx: Context) { appCtx = ctx.applicationContext }
+    fun attach(ctx: Context) {
+        appCtx = ctx.applicationContext
+        if (!sortLoaded) {
+            sortLoaded = true
+            val p = ctx.applicationContext.getSharedPreferences("browser", Context.MODE_PRIVATE)
+            _sortBy.value = try { SortBy.valueOf(p.getString("sort", "NAME")!!) } catch (_: Exception) { SortBy.NAME }
+            _sortReversed.value = p.getBoolean("sort_reversed", false)
+            _entries.value = sortEntries(_entries.value, _sortBy.value, _sortReversed.value)
+        }
+    }
+    private var sortLoaded = false
+    private fun saveSort() { appCtx?.getSharedPreferences("browser", Context.MODE_PRIVATE)?.edit()?.putString("sort", _sortBy.value.name)?.putBoolean("sort_reversed", _sortReversed.value)?.apply() }
 
     /** Runs a long copy on IO under the foreground transfer service so it survives the screen turning off. */
     private fun launchTransfer(ctx: Context?, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) = viewModelScope.launch(Dispatchers.IO) {
@@ -85,6 +96,9 @@ class FileBrowserViewModel : ViewModel() {
     // Sort state
     private val _sortBy = MutableStateFlow(SortBy.NAME)
     val sortBy: StateFlow<SortBy> = _sortBy.asStateFlow()
+    /** Each sort has its natural direction (name A-Z, size and date largest / newest first, type A-Z); this flips it. */
+    private val _sortReversed = MutableStateFlow(false)
+    val sortReversed: StateFlow<Boolean> = _sortReversed.asStateFlow()
 
     // View mode (list / grid)
     private val _viewMode = MutableStateFlow(ViewMode.LIST)
@@ -182,9 +196,15 @@ class FileBrowserViewModel : ViewModel() {
         _selectedEntries.value = emptySet()
     }
 
+    /** Choosing the sort that is already active flips its direction; choosing another one starts in its natural direction. */
     fun setSortBy(sort: SortBy) {
-        _sortBy.value = sort
-        _entries.value = sortEntries(_entries.value, sort)
+        if (sort == _sortBy.value) _sortReversed.value = !_sortReversed.value else { _sortBy.value = sort; _sortReversed.value = false }
+        _entries.value = sortEntries(_entries.value, _sortBy.value, _sortReversed.value); saveSort()
+    }
+
+    fun toggleSortReversed() {
+        _sortReversed.value = !_sortReversed.value
+        _entries.value = sortEntries(_entries.value, _sortBy.value, _sortReversed.value); saveSort()
     }
 
     fun toggleViewMode() {
@@ -829,7 +849,7 @@ class FileBrowserViewModel : ViewModel() {
 
             if (result != null) {
                 val filtered = if (_showHidden.value) result else result.filter { !it.name.startsWith(".") && it.name.trimStart('\u0000') != "HFS+ Private Data" && it.name != ".HFS+ Private Directory Data\r" }
-                _entries.value = sortEntries(filtered, _sortBy.value)
+                _entries.value = sortEntries(filtered, _sortBy.value, _sortReversed.value)
                 if (!viewModeChosenByUser) {
                     val files = filtered.filter { !it.isDirectory }
                     val media = files.count { it.fileType == app.feldkit.storage.filesystem.FileType.IMAGE || it.fileType == app.feldkit.storage.filesystem.FileType.VIDEO }
@@ -858,13 +878,11 @@ class FileBrowserViewModel : ViewModel() {
         _breadcrumbs.value = crumbs
     }
 
-    private fun sortEntries(entries: List<FileSystemEntry>, sort: SortBy): List<FileSystemEntry> {
+    private fun sortEntries(entries: List<FileSystemEntry>, sort: SortBy, reversed: Boolean = false): List<FileSystemEntry> {
         val (dirs, files) = entries.partition { it.isDirectory }
         val sortedDirs = when (sort) {
-            SortBy.NAME -> dirs.sortedBy { it.name.lowercase() }
-            SortBy.SIZE -> dirs.sortedBy { it.name.lowercase() }
+            SortBy.NAME, SortBy.SIZE, SortBy.TYPE -> dirs.sortedBy { it.name.lowercase() }
             SortBy.DATE -> dirs.sortedByDescending { it.modifiedAt }
-            SortBy.TYPE -> dirs.sortedBy { it.name.lowercase() }
         }
         val sortedFiles = when (sort) {
             SortBy.NAME -> files.sortedBy { it.name.lowercase() }
@@ -872,7 +890,8 @@ class FileBrowserViewModel : ViewModel() {
             SortBy.DATE -> files.sortedByDescending { it.modifiedAt }
             SortBy.TYPE -> files.sortedWith(compareBy({ it.extension }, { it.name.lowercase() }))
         }
-        return sortedDirs + sortedFiles
+        // folders stay above files in either direction
+        return (if (reversed) sortedDirs.reversed() else sortedDirs) + (if (reversed) sortedFiles.reversed() else sortedFiles)
     }
 
     fun clearTransferProgress() {

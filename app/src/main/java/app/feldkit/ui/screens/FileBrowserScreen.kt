@@ -86,6 +86,7 @@ fun FileBrowserScreen(
     val breadcrumbs by viewModel.breadcrumbs.collectAsState()
     val selected by viewModel.selectedEntries.collectAsState()
     val sortBy by viewModel.sortBy.collectAsState()
+    val sortReversed by viewModel.sortReversed.collectAsState()
     val transferProgress by viewModel.transferProgress.collectAsState()
     val offload by viewModel.offload.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
@@ -178,9 +179,13 @@ fun FileBrowserScreen(
                                 SortBy.values().forEach { sort ->
                                     GlassMenuItem(
                                         "Sort by ${sort.name.lowercase()}", tint = if (sortBy == sort) Accent else TextPrimary,
-                                        icon = { if (sortBy == sort) Icon(Icons.Default.Check, null, tint = Accent) else Spacer(Modifier.size(24.dp)) }
+                                        icon = { if (sortBy == sort) Icon(if (sortReversed) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, null, tint = Accent) else Spacer(Modifier.size(24.dp)) }
                                     ) { viewModel.setSortBy(sort); menuOpen = false }
                                 }
+                                GlassMenuItem(
+                                    "Reverse order", tint = if (sortReversed) Accent else TextPrimary,
+                                    icon = { Icon(Icons.Default.SwapVert, null, tint = if (sortReversed) Accent else TextSecondary) }
+                                ) { viewModel.toggleSortReversed(); menuOpen = false }
                                 HorizontalDivider(color = GlassBorderFaint, modifier = Modifier.padding(vertical = 4.dp))
                                 GlassMenuItem(
                                     if (showHidden) "Hide hidden files" else "Show hidden files",
