@@ -1,5 +1,20 @@
 # FeldKit Changelog
 
+## 1.0.1 (2026-10-11)
+- The app no longer requests the `INTERNET` and `QUERY_ALL_PACKAGES` permissions: it cannot send anything anywhere.
+- The unlock screen says that writing to encrypted volumes is available in Settings.
+- README rewritten with screenshots; docs split into `docs/VERIFICATION.md` and `docs/ARCHITECTURE.md`.
+
+## 1.0.0 (2026-10-11)
+First release of FeldKit, the fork of VolumeX.
+
+- **Formats:** write support for ext2/3/4, BitLocker, LUKS (also 4 KiB sectors) and LVM (all experimental, off by default); ISO 9660, UDF and `.dmg` images; LUKS 4 KiB-sector reading fixed.
+- **DIT:** xxHash and more checksums, copy to several places at once, ASC MHL 2.0, PDF and CSV reports, USB reads at about 250 MB/s.
+- **Music:** exact BPM and key, waveform, A-B loop and speed, MIDI playback, WAV metadata, Ableton / FL Studio / REAPER project overview.
+- **Photos:** RAW development (LibRaw), culling with XMP sidecars, histogram, GPS.
+- **Developers:** syntax colours, search, JSON / plist / CSV / Markdown viewers, SQLite browser, safe text editing.
+- One interface style everywhere, reverse sort order, release builds per ABI signed by GitHub Actions.
+
 ## 0.1.1-alpha
 
 ### Added

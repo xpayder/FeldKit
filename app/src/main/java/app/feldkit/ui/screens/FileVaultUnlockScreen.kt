@@ -128,7 +128,7 @@ fun FileVaultUnlockScreen(
                 Icon(Icons.Default.Shield, null, tint = AccentGreen, modifier = Modifier.size(18.dp).padding(top = 2.dp))
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "Your password never leaves this phone. It is used once to unlock the drive in memory and is not saved. The drive is opened read-only.",
+                    "Your password never leaves this phone. It is used once to unlock the drive in memory and is not saved. The drive is opened read-only unless you enable writing to encrypted volumes in Settings.",
                     color = TextTertiary, fontSize = 12.sp, lineHeight = 17.sp
                 )
             }

@@ -1,173 +1,186 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" width="128" alt="FeldKit logo">
+  <img src="docs/assets/logo.svg" width="112" alt="FeldKit logo">
 </p>
 
 <h1 align="center">FeldKit</h1>
 
-<p align="center"><b>Open Mac and Windows drives on your Android phone. Free, open source, no root, no account.</b></p>
+<p align="center"><b>A field kit for people who work with drives.<br>
+Open Mac, Windows and Linux drives on your Android phone, play and check what is on them, and copy it off with proof.</b></p>
 
 <p align="center">
-APFS &middot; HFS+ &middot; NTFS &middot; exFAT &middot; FAT32 &middot; FileVault &middot; BitLocker
+  <a href="https://github.com/xpayder/FeldKit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/xpayder/FeldKit?color=5BE3C0&label=release"></a>
+  <a href="https://github.com/xpayder/FeldKit/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/xpayder/FeldKit/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-5BE3C0">
+  <img alt="Android 10+" src="https://img.shields.io/badge/Android-10%2B-5BE3C0">
+  <img alt="No internet permission" src="https://img.shields.io/badge/internet-no%20permission-5BE3C0">
 </p>
 
-FeldKit is a field kit for people who work with drives: musicians, sound designers, photographers, videographers and
-DITs, designers, animators, developers. When the laptop is not around, plug the SSD or card reader into your phone over
-USB-C / OTG, see the files, play and preview them, check them, and copy them off (or on) with proof that nothing got
-corrupted. No paid "drive reader" subscription needed.
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#formats">Formats</a> ·
+  <a href="#safety-and-privacy">Safety and privacy</a> ·
+  <a href="#build-from-source">Build</a>
+</p>
 
-## Does this solve your problem?
+<table>
+  <tr>
+    <td width="25%"><img src="docs/screenshots/01-drive.jpg" alt="A connected drive"></td>
+    <td width="25%"><img src="docs/screenshots/02-photos.jpg" alt="Photo grid with RAW files"></td>
+    <td width="25%"><img src="docs/screenshots/03-audio-loop.jpg" alt="Waveform with an A-B loop"></td>
+    <td width="25%"><img src="docs/screenshots/05-raw-developed.jpg" alt="A RAW file developed on the phone"></td>
+  </tr>
+</table>
+
+Musicians, sound designers, photographers, videographers and DITs, designers, developers: when the laptop is not around,
+plug an SSD or a card reader into the phone over USB-C, and FeldKit shows the files, plays and previews them, tells you
+what is inside, and copies them with a check that nothing got corrupted. Free, open source, no root, no account, and the
+app has no internet permission at all.
 
 | You searched for | FeldKit |
 |---|---|
-| "Android can't read my Mac SSD / APFS drive" | reads APFS and HFS+, writes experimentally |
-| "Android says drive is unsupported / needs formatting (NTFS)" | reads NTFS, writes experimentally |
-| "open BitLocker drive on Android phone" | unlocks with password or 48-digit recovery key |
-| "open FileVault encrypted external drive without a Mac" | unlocks with password or recovery key (read-only) |
-| "copy footage from SSD to phone and verify the copy" | SHA-256 verified copy + `.sha256` manifest |
-| "play ProRes / DNxHD / FLAC / AIFF from USB drive on Android" | built-in player with a libVLC fallback |
-| "view RAW photos / PSD / EXIF from a card on my phone" | viewer with zoom and an EXIF panel |
-| "unzip / unrar from an external drive on Android" | built-in archive browser and extractor |
+| "Android can't read my Mac SSD / APFS drive" | reads APFS and HFS+, writes (experimental) |
+| "Android says the drive is unsupported or needs formatting (NTFS)" | reads NTFS, writes (experimental) |
+| "open a BitLocker / LUKS / FileVault drive on my phone" | unlocks with the password or recovery key |
+| "read a Linux ext4 drive on Android" | reads ext2/3/4, writes (experimental) |
+| "copy footage from an SSD to the phone and verify the copy" | checksummed copy, ASC MHL, report |
+| "play ProRes / DNxHD / FLAC / AIFF from a USB drive" | built-in player with a libVLC fallback |
+| "view RAW photos from a card on my phone" | RAW development (LibRaw), culling, XMP |
 
-## Releases
+## Download
 
-A tag such as `v1.2.0` makes GitHub Actions build the optimised release APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64` and a universal one), sign them, and attach them to a GitHub release together with `SHA256SUMS.txt` (workflow: `.github/workflows/release.yml`). Signing material comes from repository secrets; `tools/make-release-keystore.sh` creates the key on your own machine and prints the four values to store. Without the secrets the workflow still runs and signs with a throwaway key, and the release is marked as a pre-release, because phones refuse to update an app over a build signed with another key. Every push is built and tested by `.github/workflows/ci.yml`. Local release build: `./gradlew :app:assembleRelease -PallAbis` (set the `FELDKIT_KEYSTORE_*` variables or `keystore.properties`).
+Get the APK from the **[latest release](https://github.com/xpayder/FeldKit/releases/latest)**.
 
-## For developers
+| File | For |
+|---|---|
+| `FeldKit-<version>-arm64-v8a.apk` | almost every phone made in the last years (start here) |
+| `FeldKit-<version>-armeabi-v7a.apk` | older 32-bit phones |
+| `FeldKit-<version>-x86_64.apk` | emulators and some Chromebooks |
+| `FeldKit-<version>-universal.apk` | if you are not sure (larger) |
 
-- **Source code you can read.** Syntax colours for Kotlin, Java, C/C++, C#, JavaScript/TypeScript, Python, Rust, Go, Swift, shell, Ruby, PHP, Lua, SQL, CSS, JSON, XML/HTML, Markdown, YAML, TOML, INI, Makefile and Dockerfile (by extension or `#!` line), with line numbers.
-- **Search in the file:** plain text or regular expression, with or without case, next/previous, every match highlighted, and `:123` to jump to a line.
-- **Structured files.** JSON and property lists (XML and Apple's binary `bplist00`) open as a collapsible tree (long-press copies the path, e.g. `$.items[2].name`), CSV and TSV as a table, and Markdown rendered (headings, lists, tasks, quotes, code with colours, tables, links). Each has a switch to the plain source. Property lists are checked against Python's `plistlib`.
-- **SQLite databases** (`.sqlite`, `.sqlite3`, `.db`, also Core Data stores): tables and views, schema, rows page by page, `SELECT` queries, BLOBs shown by size, and CSV export to Downloads/FeldKit. The database is opened read-only from a temporary copy (up to 400 MB).
-- **Edit a text file on the drive** (writable drives, up to 512 KB). Undo and redo, a confirmation before saving, and a careful save: the file must be unchanged since you opened it, its old content is kept inside FeldKit, the new content is written beside it and read back byte for byte, and only then replaces the original (the encoding, BOM and line endings are kept). If anything fails the original stays as it was; the history button in the editor loads the version from before the last save.
+Open the file on the phone and allow installing from your browser or file manager when Android asks. Check the download against
+`SHA256SUMS.txt` from the same release. Needs **Android 10 or newer** and USB host (OTG) support; a USB-C cable or an OTG
+adapter, and a powered hub for large bus-powered drives. Releases are built and signed by GitHub Actions
+([how](#releases)); the signing key's SHA-256 fingerprint is `5B:84:5E:D5:91:CD:B7:08:E6:B2:FA:FF:D4:A3:2B:1F:36:CF:96:21:B2:D4:B1:80:2A:ED:11:4D:2C:C9:92:60`.
 
-## For photographers
+## What it does
 
-- **Develop RAW files.** Open a RAW and tap "Develop RAW": FeldKit decodes the real sensor data with LibRaw (camera white balance, demosaic, sRGB) in a few seconds, with camera, lens, ISO, shutter and aperture in the details. Checked on files from Canon (CR3), Nikon (NEF), Sony (ARW) and Fujifilm (X-Trans RAF); pictures above 60 MB are developed at half size so that they fit in the phone's memory. Before that the embedded preview is shown at once, and cameras that store an uncompressed thumbnail (some Nikon) get a proper grid tile. LibRaw is LGPL / CDDL and lives in its own library, see [CREDITS](CREDITS.md).
-- **Cull a shoot on the phone.** In any folder with pictures, menu > "Cull photos": swipe through the folder, give stars, reject, flag a pick and set a colour label. Filters (all, picked, not rated, 3 stars and up, rejected) and a counter ("123 / 540") keep long shoots manageable, and "save these photos" copies exactly what the filter shows, together with their `.xmp` files.
-- **Histogram and location.** The photo info sheet shows an RGB and luminance histogram with a warning when shadows or highlights are clipped, and an "Open in Maps" link next to the GPS position.
-- **Ratings travel with the files.** When the drive can be written, stars and labels are saved as `.xmp` sidecars next to the photos (`xmp:Rating`, `xmp:Label`), the same fields Lightroom, Bridge and Capture One read. An existing sidecar is edited in place, so develop settings and keywords in it stay untouched (checked with `exiftool`). On a read-only drive the marks stay in FeldKit.
+### Open any drive
 
-## For people who make music
+Plug in the drive and FeldKit mounts it: several partitions at once, disk images (`.iso`, `.dmg`, `.img`) opened from
+inside a drive, encrypted drives unlocked with a password or a recovery key. You get a file browser with list and grid
+views, search, sorting in both directions, selection by tapping the icon, and a bar of actions that follows what you have
+selected. Writing is there too (add files, new folder, rename, delete) for the formats listed [below](#formats).
 
-- **Real BPM of any audio file.** Open the info of a file and FeldKit measures its tempo on the phone (mp3, m4a/aac, flac, wav, aiff, ogg, opus...). It reads the tempo tags too and shows both, because a tag is often a rounded number. Loops that are cut to whole bars are locked to the exact tempo of the project they came from (typically to 0.01 BPM or better). Tracks without a steady beat say so instead of guessing.
-- **Musical key.** Next to the tempo the info sheet shows the key in both notations, for example "F# minor · 11A" (the Camelot code DJs use), the key that shares the same notes, and the next best guess. MIDI files are read from their notes. For audio it is an estimate and a hard one: on 184 loops from sample packs that state their key in the name, about 35 % match exactly and 45 % match or land on the relative key (`tools/make-key-labels.py` + `KeyTest`); on synthetic chord progressions in all 24 keys it is 24 of 24. Loops of one or two notes, bass and drums are the weak spot, so a doubtful reading says "uncertain" and always lists the alternative.
-- **Waveform, A-B loop, speed.** The playing row shows the waveform (tap or drag to seek, the sound follows the finger), A and B markers loop a passage without a gap, and the speed goes from 0.5x to 1.5x with the pitch kept. The markers are remembered per file.
-- **What is inside a music project.** Tap an Ableton Live set (`.als`), an FL Studio project (`.flp`) or a REAPER project (`.rpp`) and FeldKit lists the DAW and version, tempo, meter, tracks or channels, plug-ins, samples and scenes, without the DAW. Verified on real projects (an 11 MB Live set reads in a few seconds on a Galaxy S21 FE). Logic, Pro Tools, Cubase and Studio One projects are not read yet.
-- **Field-recorder and loop metadata in WAV files.** Scene, take, tape, notes and track names (iXML), description, originator and start timecode (broadcast wave), root note and loops (sampler), Acid loop data and marker count appear in the info sheet.
-- **MIDI clips play with a piano and a drum kit.** Pitched parts sound as a piano, drum parts (GM channel 10, or a kit pattern on any channel, or a file named "Hi Hat 12" / "Kick 03") as a drum kit. Both are synthesised by FeldKit, so it sounds the same on every phone. The tempo is read from the file.
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/12-bitlocker-locked.jpg" alt="A BitLocker drive waiting for its password"></td>
+    <td width="33%"><img src="docs/screenshots/08-save-dialog.jpg" alt="Save dialog with checksums, MHL and a report"></td>
+    <td width="33%"><img src="docs/screenshots/09-project.jpg" alt="Inside a REAPER project"></td>
+  </tr>
+</table>
 
-### How accurate is the BPM?
+### For video and DIT
 
-Measured, not promised: on synthetic tracks with a known tempo the error is at most 0.01 BPM (steady, swung, humanised and noisy grooves). On 450 real loops from sample packs whose names state their tempo (`tools/make-tempo-real.py` builds the check from your own library), about 79 % are exactly right, 9 % land on half / double time (the other reading is shown under "Also reads as"), and the rest are samples with no beat to find (risers, pads, vocals) or a wrong guess. Half / double time is genuinely ambiguous for a machine, so both readings are listed.
+- **Copy with proof.** Each file is read from the drive once, hashed on the way, written to every destination at the same time (the phone's Downloads, an SD card or any folder the system picker offers), and read back to compare. Checksums: xxHash (xxh64, xxh3, xxh128), MD5, SHA-1, SHA-256, SHA-512, C4, CRC32.
+- **The paperwork DIT workflows expect.** ASC MHL 2.0 history (checked with the reference `ascmhl` tool), `xxhsum`/`shasum`-compatible checksum lists, and a written report as PDF and CSV.
+- **Fast reads.** Pipelined USB transfers read at around 250 MB/s from a USB 3 SSD on a Galaxy S21 FE (measured).
+- **Playback.** Hardware decoders first; when the phone has none for a file (ProRes, DNxHD / MXF, FFV1, WMV, FLV, DivX) FeldKit switches to the libVLC software player by itself.
+- Not there yet: timecode and frame stepping, LUT preview, camera-card clip grouping (see the [roadmap](docs/ROADMAP.md), written in Russian).
 
-## Screenshots
+### For people who make music
 
-<!-- Screenshots are added once the interface is finished. See docs/screenshots/README.md -->
-<p align="center"><i>Screenshots coming soon.</i></p>
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/03-audio-loop.jpg" alt="Waveform, A-B loop and speed"></td>
+    <td width="33%"><img src="docs/screenshots/04-info.jpg" alt="BPM and key"></td>
+    <td width="33%"><img src="docs/screenshots/09-project.jpg" alt="Project overview"></td>
+  </tr>
+</table>
 
-## Origin
+- **Real BPM of any audio file** (mp3, m4a/aac, flac, wav, aiff, ogg, opus...), measured on the phone, shown next to the tempo tag when the file has one, because a tag is often a rounded number. Loops cut to whole bars are locked to the exact tempo they came from. Tracks without a steady beat say so instead of guessing.
+- **Musical key** in both notations, e.g. "F# minor · 11A" (Camelot), with the key that shares the same notes and the next best guess. MIDI files are read from their notes.
+- **Waveform that is also the seek bar** (the sound follows your finger), **A-B loop** without a gap, speed from 0.5x to 1.5x with the pitch kept. Markers are remembered per file.
+- **MIDI plays** as a piano, or as a drum kit for drum parts (GM channel 10, kit patterns, files named "Hi Hat 12"), synthesised by FeldKit so it sounds the same on every phone.
+- **What is inside a music project**, without the DAW: Ableton Live (`.als`), FL Studio (`.flp`) and REAPER (`.rpp`): DAW and version, tempo, meter, tracks or channels, plug-ins, samples, scenes.
+- **Field-recorder and loop metadata in WAV**: scene, take, tape, notes and track names (iXML), description, originator and start timecode (BWF), root note and loops (sampler), Acid data, marker count.
 
-FeldKit is a fork of [VolumeX](https://github.com/FatalPuppet/VolumeX) by Mirko A. Calvi (FatalPuppet), MIT licensed.
-The original author built the USB transport and the first APFS / HFS+ readers; if this app saves you money or a
-deadline, consider thanking them. Details in [CREDITS.md](CREDITS.md).
+**How accurate is it?** BPM: on synthetic tracks with a known tempo the error is at most 0.01 BPM; on 450 real loops from sample packs whose names state their tempo, about 79 % are exactly right and 9 % land on half or double time (the other reading is listed under "Also reads as"). Key: on 184 loops with the key in the name, about 35 % match exactly and 45 % match or land on the relative key, and 24 of 24 on synthetic chord progressions. Loops of one or two notes, bass and drums are the weak spot, so a doubtful key says "uncertain" and always lists the alternative. The checks are in `tools/make-tempo-real.py`, `tools/make-key-labels.py`, `TempoTest` and `KeyTest`.
 
----
+### For photographers
 
-## Filesystem support (verified on macOS-made images)
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/02-photos.jpg" alt="RAW files in a grid"></td>
+    <td width="33%"><img src="docs/screenshots/06-raw-details.jpg" alt="RAW development details"></td>
+    <td width="33%"><img src="docs/screenshots/07-cull.jpg" alt="Culling a shoot"></td>
+  </tr>
+</table>
 
-Every row below is checked by automated tests that build real disk images with the macOS tools
-(`tools/make-fixtures.sh`), run the app's own mount/read/write code on them, and then let macOS
-judge the result (`tools/verify-written.sh`: `fsck_apfs` / `fsck_hfs -f` / `fsck_exfat` / `fsck_msdos`,
-mount, SHA-256 comparison).
+- **Develop RAW files.** Tap "Develop RAW": the real sensor data is decoded with LibRaw (camera white balance, demosaic, sRGB) in a few seconds, with camera, lens, ISO, shutter and aperture in the details. Checked on Canon (CR3), Nikon (NEF), Sony (ARW) and Fujifilm (X-Trans RAF); files above 60 MB are developed at half size to fit in memory. The embedded preview shows at once, DNG opens natively.
+- **Cull a shoot.** Menu > "Cull photos": swipe through the folder, give stars, reject, flag, set a colour label; filter by rating; "save these photos" copies exactly what the filter shows together with their sidecars.
+- **Ratings travel with the files.** On a writable drive, stars and labels are saved as `.xmp` sidecars (`xmp:Rating`, `xmp:Label`), the fields Lightroom, Bridge and Capture One read. An existing sidecar is edited in place, so develop settings and keywords stay untouched (checked with `exiftool`).
+- **Histogram with clipping warnings**, EXIF, and "Open in Maps" next to the GPS position.
 
-| Format | Read | Write | Notes |
-|--------|:----:|:-----:|-------|
-| **exFAT** | yes | yes | NoFatChain files, 128 KB clusters, 8 GB volume tested |
-| **FAT32** | yes | yes | long names, `~N` aliases, FSInfo |
-| **HFS+ / HFS+J** | yes | yes | catalog B-tree split/merge, attribute cleanup on delete; refuses unclean/journal-pending volumes |
-| **APFS** | yes | experimental | in-place editing (not copy-on-write); off by default (Settings > Experimental); needs an unencrypted volume with no snapshots; creates missing chunk bitmaps (verified with `fsck_apfs`, 150 MB file across chunks) |
-| ext2/3/4 | yes | experimental | Reads block maps and extent trees, 64-bit, flex_bg, hash-tree directories, streamed reads. Write (off by default, Settings > Experimental): create, rename and delete files and folders, directly without the journal; refuses volumes whose journal needs recovery or that use quota, bigalloc, meta_bg, inline data or encryption. Verified with `e2fsck -fn` and a real Linux kernel mount on 15 images from `mke2fs` (ext2, ext3, ext4, 1 and 4 KiB blocks, with and without metadata_csum, 32- and 64-bit, 700 MB with many groups, fragmented files, directories of thousands of entries): `tools/linux/make-ext-fixtures.sh`, `ExtWriteTest`, `tools/linux/validate-ext-written.sh` |
-| FileVault (APFS) | yes (password or recovery key) | no | verified against a volume encrypted by macOS (`filevault.img`, tests in `FileVaultTest`); opened read-only |
-| NTFS | yes | experimental | MFT, attribute lists, sparse + compressed (LZNT1) files, large directories; verified on an image made by `mkntfs`/ntfs-3g (`tools/make-ntfs-fixture.sh`). Write (off by default): create / rename / delete with MFT growth and B+tree index splits, refuses dirty or hibernated volumes; verified with ntfs-3g and `ntfsresize` (`tools/verify-ntfs.sh`), **not** with Windows chkdsk. Not readable: EFS-encrypted files |
-| BitLocker (Windows 7+, To Go) | yes (password or 48-digit recovery key) | experimental | XTS and CBC ciphers (not the Windows 7 diffuser mode); NTFS / exFAT / FAT32 inside. Write (off by default, Settings > Experimental): every sector is encrypted on its way to the drive; the result opens in `dislocker` and passes `fsck.exfat` (`BitLockerWriteTest`, `tools/bitlocker/validate-written.sh`); fixtures opened by cryptsetup and dislocker (`tools/make-bitlocker.py`) |
-| ISO 9660 (+ Joliet, Rock Ridge) | yes | no | optical images and installer sticks; open an `.iso` / `.img` from inside a drive and browse it without unpacking. Checked against images from `hdiutil` and `xorriso` (`tools/make-iso-fixtures.sh`, `tools/make-iso-rr.sh`) |
-| UDF | yes | no | DVD / Blu-ray images; plain and sparable partitions (not CD-RW virtual partitions). Checked against `hdiutil` images |
-| Apple disk images (.dmg) | yes | no | UDRO / UDZO (zlib) / UDBZ (bzip2) holding HFS+ (APM or GPT); LZFSE (ULFO / ULMO) is recognised but not supported yet |
-| LUKS 1 / LUKS 2 | yes (passphrase) | experimental | AES-XTS and AES-CBC (plain / plain64 / ESSIV); PBKDF2, Argon2i and Argon2id (a 1 GiB Argon2id keyslot unlocks in about 50 s on a Galaxy S21 FE); not serpent / twofish. 512-byte and 4 KiB encryption sectors. Write (off by default, Settings > Experimental) re-encrypts every sector; opened and fsck-checked with the real `cryptsetup` (`LuksWriteTest`, `tools/linux/validate-luks-written.sh`). Verified against containers made by `cryptsetup` 2.7 and the RFC 9106 Argon2 vectors |
-| LVM 2 | yes | with the volume inside | physical volumes holding one or more logical volumes (linear); each logical volume is its own volume. Verified against `lvm2` images; no RAID / thin / striped |
+### For developers
 
-Write operations: add files (streamed), new folder, rename, delete (recursive). Multi-partition GPT/MBR
-drives are supported (EFI partition skipped).
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/10-markdown.jpg" alt="Markdown rendered"></td>
+    <td width="33%"><img src="docs/screenshots/11-sqlite.jpg" alt="SQLite browser"></td>
+    <td width="33%"></td>
+  </tr>
+</table>
 
-### Known limits
-- APFS write is in-place (no copy-on-write): an unplugged cable mid-write can leave the volume needing `fsck_apfs`. Encrypted and snapshotted volumes stay read-only.
-- HFS+ write does not grow the catalog file and cannot delete files whose attributes or extents live in overflow structures.
-- 4Kn (4096-byte logical sector) drives are not supported; sector size is assumed to be 512.
-- A power loss while an APFS write is in progress can leave the drive needing repair on a Mac.
+- **Source you can read:** syntax colours for Kotlin, Java, C/C++, C#, JavaScript/TypeScript, Python, Rust, Go, Swift, shell, Ruby, PHP, Lua, SQL, CSS, JSON, XML/HTML, Markdown, YAML, TOML, INI, Makefile and Dockerfile; search with regex, case and `:123` to jump to a line.
+- **Structured files:** JSON and property lists (XML and Apple's binary `bplist00`) as a collapsible tree (long-press copies the path, e.g. `$.items[2].name`), CSV/TSV as a table, Markdown rendered; each with a switch to the source.
+- **SQLite** (`.sqlite`, `.sqlite3`, `.db`, Core Data): tables, views, schema, rows page by page, `SELECT` queries, CSV export. Opened read-only.
+- **Edit a text file on the drive** (writable drives, up to 512 KB) with undo and redo. A save is careful: the file must be unchanged since you opened it, the old content is kept inside FeldKit, the new content is written beside it and read back byte for byte before it replaces the original (encoding, BOM and line endings are kept).
 
-### Test it yourself
-```
-tools/make-fixtures.sh          # builds app/build/fixtures/*.img with macOS tools
-./gradlew :app:testDebugUnitTest
-tools/verify-written.sh         # asks macOS (fsck + mount + hashes) about every written image
-tools/phone-image.sh push|open|import|pull   # run the debug app on a phone against an image
-```
+### Everything else
 
----
+Archives (zip, 7z, tar, gz, bz2, xz, rar) browse and extract in place; PDFs, images (GIF, SVG, PSD preview), plain text and a hex viewer open inside the app; other apps can reach the files through "Open with", Share and the system file picker. Interface: one frosted-glass style everywhere, built with Jetpack Compose and Haze.
 
-## Architecture
+## Formats
 
-```
-app/
-├── provider/
-│   ├── DriveFileProvider        # ContentProvider pipe-streams files ("Open With" / Share)
-│   └── DriveDocumentsProvider   # DocumentsProvider (Android file picker integration)
-├── security/
-│   └── KeystorePasswordManager  # AES-GCM + Android Keystore + BiometricPrompt
-├── services/
-│   └── TransferService          # Foreground Service for non-blocking transfers
-├── storage/
-│   ├── ActiveDriveSession       # Singleton for active reader (used by ContentProviders)
-│   ├── FileOperationManager     # copy / delete / mkdir with progress callbacks
-│   ├── crypto/
-│   │   ├── AesXts               # Manual AES-XTS (GF(2^128) tweak advance)
-│   │   ├── ApfsKeyDerivation    # PBKDF2-HMAC-SHA256 KEK, base-32 recovery key decode
-│   │   ├── ApfsKeybag           # TLV keybag parser + RFC 3394 AES key unwrap
-│   │   └── ApfsCrypto           # FileVault keybag / PBKDF2 / key unwrap
-│   ├── disk/                    # BlockDeviceReader, DiskScanner, Partition
-│   ├── filesystem/
-│   │   ├── apfs/                # APFS container/volume superblock, OMAP, B-tree, reader
-│   │   ├── hfsplus/             # HFS+ volume header, catalog B-tree, reader
-│   │   ├── fat32/               # FAT32 boot sector, cluster chain, LFN reader
-│   │   ├── ext/                 # ext2/3/4 superblock, BGD, extent tree reader
-│   │   ├── exfat/               # exFAT boot sector
-│   │   └── partition/           # GPT + MBR partition table parsers
-│   ├── scsi/                    # SCSI command set (INQUIRY, READ CAPACITY, READ 10)
-│   └── usb/                     # USB Bulk-Only Transport, UAS transport, interface scanner
-└── ui/
-    ├── screens/
-    │   ├── HomeScreen            # USB connect flow, device info
-    │   ├── VolumePickerScreen    # Multi-partition volume selector
-    │   ├── FileBrowserScreen     # Directory listing, search, grid/list, operations
-    │   ├── FilePreviewScreen     # Image / audio / video preview
-    │   ├── FileVaultUnlockScreen # Password / recovery key entry
-    │   ├── TransferScreen        # Transfer queue and progress
-    │   └── SettingsScreen        # Hidden files, view mode, saved passwords
-    ├── components/               # GlassCard, FileListItem, DeviceVolumeCard, ...
-    └── theme/                    # Liquid Glass palette (deep navy + frosted glass)
+| Format | Read | Write |
+|---|:---:|:---:|
+| exFAT, FAT32, HFS+ | yes | yes |
+| APFS | yes | experimental |
+| NTFS | yes | experimental |
+| ext2 / ext3 / ext4 | yes | experimental |
+| BitLocker (Windows 7+, To Go) | yes (password or recovery key) | experimental |
+| LUKS 1 / 2, LVM 2 | yes (passphrase) | experimental |
+| FileVault (APFS) | yes (password or recovery key) | no |
+| ISO 9660, UDF, `.dmg` | yes | no (optical images, compressed images) |
+
+"Experimental" means off by default (Settings > Experimental), verified against independent tools (`fsck_apfs`, `ntfs-3g`, `e2fsck` and a real Linux kernel, `dislocker`, `cryptsetup`) but not against the systems' own drivers in every case, and a power loss or an unplugged cable during a write can leave a drive needing repair. Back up first. What each format supports exactly, its limits and how every claim is checked: **[docs/VERIFICATION.md](docs/VERIFICATION.md)**.
+
+## Safety and privacy
+
+- **No internet permission.** The app cannot send anything anywhere; there is no analytics and no account. (The manifest says so: `INTERNET` is not requested.)
+- **Passwords are used once**, to unlock the drive in memory, and are not saved.
+- **Writing is conservative.** Writers refuse volumes that are not in a clean state (journal needing recovery, hibernated NTFS, snapshots...) and say why on the drive card. Eject before unplugging.
+- **Copies are verified** by reading them back; a mismatch is reported file by file.
+
+## Build from source
+
+```bash
+./gradlew :app:assembleDebug            # debug APK (arm64)
+./gradlew :app:testDebugUnitTest        # unit tests; the disk-image tests skip themselves until the fixtures exist
+./gradlew :app:assembleRelease -PallAbis   # optimised release APKs for every ABI (needs a signing key, see below)
 ```
 
----
+Needs JDK 17+, the Android SDK (platform 37), NDK 28.2 and CMake 3.22 (the native parts are xxHash and LibRaw). The disk-image tests
+use fixtures made by the scripts in `tools/` (macOS tools for APFS/HFS+/exFAT, Docker for ext, LUKS, LVM, BitLocker checks); see
+[docs/VERIFICATION.md](docs/VERIFICATION.md). `tools/phone-image.sh` runs the debug app against a disk image on a connected phone.
 
-## Requirements
+### Releases
 
-- Android 8.0 (API 26) or newer with USB OTG support
-- USB-C cable or USB-OTG adapter; large bus-powered drives may need a powered hub
-- No root, no Mac, no account required
+A tag such as `v1.2.0` makes GitHub Actions build the optimised release APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64` and a universal one), sign them and attach them to a GitHub release with `SHA256SUMS.txt` ([`release.yml`](.github/workflows/release.yml)). The signing key comes from repository secrets; `tools/make-release-keystore.sh` creates one on your own machine. Without the secrets the workflow signs with a throwaway key and marks the release as a pre-release, because phones refuse to update an app over a build signed with another key. Every push is built and tested by [`ci.yml`](.github/workflows/ci.yml).
 
-## Credits
-See [CREDITS.md](CREDITS.md).
+## Project
 
-## License
-
-See [LICENSE](LICENSE).
+- [Roadmap and plan](docs/ROADMAP.md) (Russian) · [Architecture overview](docs/ARCHITECTURE.md) · [How formats are verified](docs/VERIFICATION.md) · [Changelog](CHANGELOG.md)
+- [Credits](CREDITS.md): FeldKit started as a fork of [VolumeX](https://github.com/FatalPuppet/VolumeX) by Mirko A. Calvi (FatalPuppet), MIT licensed. The original author built the USB transport and the first APFS and HFS+ readers; if this app saves you money or a deadline, consider thanking them. LibRaw (LGPL 2.1 / CDDL 1.0) lives in its own library.
+- [MIT license](LICENSE)
