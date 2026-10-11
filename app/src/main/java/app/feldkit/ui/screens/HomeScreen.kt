@@ -39,8 +39,8 @@ fun HomeScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // Brand row: mark and name sit directly on the backdrop (glass is never stacked on glass); only the button is glass.
             Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(app.feldkit.R.drawable.ic_logo_mark), null, Modifier.size(width = 24.dp, height = 36.dp))
-                Spacer(Modifier.width(12.dp))
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(app.feldkit.R.drawable.ic_logo_mark), null, Modifier.size(width = 16.dp, height = 24.dp))
+                Spacer(Modifier.width(10.dp))
                 Text("FeldKit", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Box(Modifier.size(44.dp).glassOrSolid(RoundedCornerShape(22.dp), GlassLevel.Chip).clip(RoundedCornerShape(22.dp)).clickable(onClick = onOpenSettings), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Settings, "Settings", tint = TextSecondary)

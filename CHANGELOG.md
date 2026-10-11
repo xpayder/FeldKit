@@ -1,5 +1,10 @@
 # FeldKit Changelog
 
+## Unreleased
+
+- Source view now reads UTF-16 and UTF-8 files with a byte-order mark correctly and no longer shows a broken last character on large files.
+- Shorter descriptions in Settings; smaller logo mark on the home screen.
+
 ## 1.0.1 (2026-10-11)
 - The app no longer requests the `INTERNET` and `QUERY_ALL_PACKAGES` permissions: it cannot send anything anywhere.
 - The unlock screen says that writing to encrypted volumes is available in Settings.

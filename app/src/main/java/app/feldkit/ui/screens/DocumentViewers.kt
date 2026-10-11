@@ -79,7 +79,7 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean, e
                 val cap = 512 * 1024
                 val buf = ByteArray(cap); var n = 0
                 ctx.contentResolver.openInputStream(uri)?.use { ins -> while (n < cap) { val r = ins.read(buf, n, cap - n); if (r <= 0) break; n += r }; truncated = ins.read() >= 0 }
-                val all = String(buf, 0, n, Charsets.UTF_8).split('\n')
+                val all = app.feldkit.code.TextDoc.forDisplay(buf, n, truncated).split('\n')
                 lines = all
                 val name = uri.getQueryParameter("path")?.substringAfterLast('/').orEmpty()
                 val lang = app.feldkit.code.Highlighter.languageOf(name, all.firstOrNull().orEmpty())

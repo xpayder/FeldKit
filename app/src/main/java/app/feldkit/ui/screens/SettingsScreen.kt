@@ -66,28 +66,28 @@ fun SettingsScreen(
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
                             title = "Write to APFS drives",
-                            subtitle = "Edits the drive in place (not copy-on-write). Checked against macOS fsck_apfs, but a power loss or unplugging during a write can leave the drive needing repair on a Mac. Keep a backup. Applies the next time you connect a drive.",
+                            subtitle = "Edits the drive in place. A power loss mid-write can leave it needing repair on a Mac. Keep a backup. Applies on next connect.",
                             checked = apfsWrite,
                             onToggle = { if (apfsWrite) { apfsWrite = false; prefs.edit().putBoolean("apfs_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableApfsWrite = false } else confirmApfs = true }
                         )
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
                             title = "Write to NTFS drives",
-                            subtitle = "Creates, renames and deletes files and folders on Windows drives. Checked against ntfs-3g, not against Windows chkdsk. Only works on drives Windows shut down cleanly (turn off Fast Startup); it refuses otherwise. Keep a backup. Applies the next time you connect a drive.",
+                            subtitle = "Create, rename and delete on Windows drives. Needs a clean shutdown (turn off Fast Startup). Not checked against chkdsk. Keep a backup. Applies on next connect.",
                             checked = ntfsWrite,
                             onToggle = { if (ntfsWrite) { ntfsWrite = false; prefs.edit().putBoolean("ntfs_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableNtfsWrite = false } else confirmNtfs = true }
                         )
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
                             title = "Write to ext2 / ext3 / ext4 drives",
-                            subtitle = "Creates, renames and deletes files and folders on Linux drives, writing directly without the journal. Checked with e2fsck and a real Linux kernel on many variants (ext2, ext3, ext4, 1 and 4 KiB blocks, with and without checksums). It refuses drives whose journal needs recovery or that use features it cannot keep consistent (quota, bigalloc, encryption). Keep a backup. Applies the next time you connect a drive.",
+                            subtitle = "Create, rename and delete on Linux drives, without the journal. Refuses drives that need journal recovery or use quota, bigalloc or encryption. Keep a backup. Applies on next connect.",
                             checked = extWrite,
                             onToggle = { if (extWrite) { extWrite = false; prefs.edit().putBoolean("ext_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableExtWrite = false } else confirmExt = true }
                         )
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
                             title = "Write to BitLocker and LUKS volumes",
-                            subtitle = "After you unlock an encrypted drive, FeldKit can write to the file system inside (exFAT, FAT32, NTFS if enabled above, ext if enabled) and encrypts every sector on its way to the drive. Checked against dislocker and cryptsetup, not against Windows or Linux themselves. A power loss or unplugging during a write can leave the volume needing repair. Keep a backup. Applies the next time you connect a drive.",
+                            subtitle = "After unlocking, write to the file system inside and encrypt every sector on the way. A power loss mid-write can leave the volume needing repair. Keep a backup. Applies on next connect.",
                             checked = encWrite,
                             onToggle = { if (encWrite) { encWrite = false; prefs.edit().putBoolean("encrypted_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableEncryptedWrite = false } else confirmEnc = true }
                         )
@@ -153,14 +153,14 @@ fun SettingsScreen(
                         SettingsToggleRow(
                             icon = Icons.Default.Check,
                             title = "Verify copies",
-                            subtitle = "After each copy the file is read back and compared (SHA-256) with the original. Slower, but a damaged copy is caught and removed instead of silently kept.",
+                            subtitle = "Re-reads each copy and compares SHA-256 with the original. Slower, but a damaged copy is removed.",
                             checked = verify,
                             onToggle = { verify = !verify; tprefs.edit().putBoolean("verify_copies", verify).apply() }
                         )
                         SettingsToggleRow(
                             icon = Icons.Default.Description,
                             title = "Write a checksum list",
-                            subtitle = "Adds a FeldKit-<date>.sha256 file next to the copied files. On a Mac or Linux, `shasum -a 256 -c` against it re-checks everything later.",
+                            subtitle = "Adds a FeldKit-<date>.sha256 file beside the copies, checkable with shasum -a 256 -c.",
                             checked = manifest,
                             onToggle = { manifest = !manifest; tprefs.edit().putBoolean("write_manifest", manifest).apply() }
                         )
@@ -176,7 +176,7 @@ fun SettingsScreen(
                         SettingsToggleRow(
                             icon = Icons.Default.Speed,
                             title = "Fast USB reads",
-                            subtitle = "Keeps several USB requests in flight instead of one at a time. On a Crucial X8 this reads about four times faster. If a drive misbehaves it switches itself off. The speed test shows what your drive does.",
+                            subtitle = "Several USB requests in flight at once. About four times faster on a Crucial X8. Switches itself off if a drive misbehaves.",
                             checked = fast,
                             onToggle = { fast = !fast; sprefs.edit().putBoolean("fast_usb_v2", fast).apply(); app.feldkit.storage.usb.UsbTuning.fastReads = fast }
                         )

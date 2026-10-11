@@ -13,6 +13,17 @@ class TextDoc(val text: String, private val bom: ByteArray, val crlf: Boolean, v
         const val MAX_BYTES = 2 shl 20
 
         /** Null when the file is not editable text (binary data, invalid UTF-8, or too big). */
+        /** Text for display: honours UTF-16 / UTF-8 byte-order marks, and drops a multi-byte character cut by [truncated]. */
+        fun forDisplay(b: ByteArray, n: Int, truncated: Boolean): String {
+            if (n >= 2 && b[0] == 0xFF.toByte() && b[1] == 0xFE.toByte()) return String(b, 2, (n - 2) and 1.inv(), Charsets.UTF_16LE)
+            if (n >= 2 && b[0] == 0xFE.toByte() && b[1] == 0xFF.toByte()) return String(b, 2, (n - 2) and 1.inv(), Charsets.UTF_16BE)
+            val start = if (n >= 3 && b[0] == 0xEF.toByte() && b[1] == 0xBB.toByte() && b[2] == 0xBF.toByte()) 3 else 0
+            var end = n
+            if (truncated) { var k = 0; while (k < 3 && end - 1 - k >= start && (b[end - 1 - k].toInt() and 0xC0) == 0x80) k++
+                if (end - 1 - k >= start && (b[end - 1 - k].toInt() and 0x80) != 0) end = end - 1 - k }
+            return String(b, start, end - start, Charsets.UTF_8)
+        }
+
         fun decode(b: ByteArray): TextDoc? {
             if (b.size > MAX_BYTES) return null
             val utf16le = b.size >= 2 && b[0] == 0xFF.toByte() && b[1] == 0xFE.toByte()
