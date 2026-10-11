@@ -142,8 +142,9 @@ fun FilePreviewScreen(
                 isImage -> HorizontalPager(state = pager, userScrollEnabled = !zoomed, modifier = Modifier.fillMaxSize(), key = { items[it].path }) { page ->
                     val e = items[page]
                     if (e.fileType == FileType.IMAGE) {
-                        Zoomable(Modifier.fillMaxSize(), onTap = { chrome = !chrome }, onZoomedChange = { if (page == pager.currentPage) zoomed = it }) {
-                            if (e.isRaw || e.isPsd) RawImage(uriOf(e), thumb = false, modifier = Modifier.fillMaxSize(), psd = e.isPsd)
+                        if (e.isRaw) DevelopableRaw(e, uriOf(e), Modifier.fillMaxSize(), onTap = { chrome = !chrome }, onZoomedChange = { if (page == pager.currentPage) zoomed = it })
+                        else Zoomable(Modifier.fillMaxSize(), onTap = { chrome = !chrome }, onZoomedChange = { if (page == pager.currentPage) zoomed = it }) {
+                            if (e.isPsd) RawImage(uriOf(e), thumb = false, modifier = Modifier.fillMaxSize(), psd = true)
                             else AsyncImage(
                                 model = ImageRequest.Builder(context).data(uriOf(e)).crossfade(true).build(), imageLoader = loader,
                                 contentDescription = e.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()

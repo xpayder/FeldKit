@@ -12,6 +12,8 @@ import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import app.feldkit.ui.theme.glassScrim
+import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -104,9 +106,14 @@ object RawPreview {
         try {
             val orientation = ctx.contentResolver.openFileDescriptor(uri, "r")?.use { ExifInterface(it.fileDescriptor).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } ?: ExifInterface.ORIENTATION_NORMAL
             var bmp: Bitmap? = null
-            if (thumb) bmp = ctx.contentResolver.openFileDescriptor(uri, "r")?.use { ExifInterface(it.fileDescriptor).thumbnailBitmap }
+            if (thumb) bmp = ctx.contentResolver.openFileDescriptor(uri, "r")?.use { fd ->
+                val x = ExifInterface(fd.fileDescriptor)
+                // a JPEG thumbnail decodes by itself; an uncompressed one (some Nikon, Kodak, older bodies) is read through LibRaw
+                if (x.hasThumbnail() && x.thumbnailBytes?.let { it.size > 2 && it[0] == 0xFF.toByte() && it[1] == 0xD8.toByte() } == true) x.thumbnailBitmap else null
+            }
             if (bmp == null) {
-                val bytes = largestEmbeddedJpeg(ctx, uri) ?: return@withContext null
+                val bytes = largestEmbeddedJpeg(ctx, uri)
+                    ?: return@withContext app.feldkit.photo.RawDeveloper.thumbnail(ctx, uri, 0)?.also { cache.put(key, it) }     // no JPEG inside: the camera's own bitmap thumbnail via LibRaw
                 val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
                 var sample = 1
@@ -245,6 +252,58 @@ fun ExifSheet(uri: Uri, name: String, onDismiss: () -> Unit) {
                                     try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("geo:${ll[0]},${ll[1]}?q=${ll[0]},${ll[1]}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
                                 })
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * A RAW photo with a "Develop" button: the embedded preview is shown at once, and the button decodes the real sensor data with LibRaw
+ * (camera white balance, sRGB) and swaps it in. Large files are developed at half size so that they fit in the phone's memory.
+ */
+@Composable
+fun DevelopableRaw(entry: app.feldkit.storage.filesystem.FileSystemEntry, uri: Uri, modifier: Modifier = Modifier, onTap: () -> Unit = {}, onZoomedChange: (Boolean) -> Unit = {}) {
+    val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var result by remember(entry.path) { mutableStateOf<app.feldkit.photo.RawDeveloper.Result?>(null) }
+    var busy by remember(entry.path) { mutableStateOf(false) }
+    var error by remember(entry.path) { mutableStateOf<String?>(null) }
+    var details by remember(entry.path) { mutableStateOf(false) }
+    Box(modifier) {
+        app.feldkit.ui.components.Zoomable(Modifier.fillMaxSize(), onTap = onTap, onZoomedChange = onZoomedChange) {
+            val r = result
+            if (r != null) Image(r.bitmap.asImageBitmap(), entry.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            else RawImage(uri, thumb = false, modifier = Modifier.fillMaxSize())
+        }
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+            when {
+                busy -> Row(Modifier.glassScrim(RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(10.dp)); Text("Developing the RAW…", color = TextPrimary, fontSize = 13.sp)
+                }
+                result != null -> Text("Developed · details", color = TextPrimary, fontSize = 13.sp, modifier = Modifier.glassScrim(RoundedCornerShape(50)).clickable { details = true }.padding(horizontal = 16.dp, vertical = 10.dp))
+                else -> Text(error ?: "Develop RAW", color = if (error != null) AccentOrange else Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.glassScrim(RoundedCornerShape(50)).clickable {
+                        busy = true; error = null
+                        scope.launch {
+                            try { result = withContext(Dispatchers.Default) { app.feldkit.photo.RawDeveloper.develop(ctx, uri, entry.size) } }
+                            catch (e: Throwable) { error = (e.message ?: "Could not develop this RAW") + " (tap to retry)" } finally { busy = false }
+                        }
+                    }.padding(horizontal = 18.dp, vertical = 10.dp))
+            }
+        }
+        if (details) result?.let { r ->
+            GlassSheet(onDismissRequest = { details = false }) {
+                Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
+                    Text(entry.name, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text("RAW DEVELOPMENT (LIBRAW)", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                    r.info.forEach { (k, v) ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
+                            Text(k, color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
+                            Text(v, color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
                         }
                     }
                 }
