@@ -88,13 +88,19 @@ fun AudioTimeText(modifier: Modifier = Modifier) {
     Text("${fmt(s.position)} / ${fmt(s.duration)}", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = modifier)
 }
 
-/** Hairline seek bar along the bottom edge of the playing row: tap or drag to seek. */
+/** Seek bar along the bottom of the playing row: the file's waveform once it has been read, a hairline until then. Tap or drag to seek. */
 @Composable
 fun AudioSeekLine(modifier: Modifier = Modifier) {
     val s = AudioSession.player ?: return
-    var width by remember { mutableIntStateOf(1) }
+    val cur = AudioSession.current
+    val env = rememberEnvelope(cur?.let { DriveFileProvider.buildUri(it.inodeOid, it.path) })
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: if (s.duration > 0) (s.position.toFloat() / s.duration).coerceIn(0f, 1f) else 0f
+    if (env != null) {
+        Waveform(env, frac, onSeek = { f -> s.seekTo((f * s.duration).toLong()) }, onScrub = { drag = it }, onScrubbing = { if (!it) drag = null }, modifier = modifier, height = 36.dp)
+        return
+    }
+    var width by remember { mutableIntStateOf(1) }
     Box(
         modifier.fillMaxWidth().height(20.dp)
             .onSizeChanged { width = it.width.coerceAtLeast(1) }

@@ -9,6 +9,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /** Mono float PCM of the first seconds of an audio file, plus the file's full duration when known. */
+/** Peak loudness per [AudioPcm.BUCKET_MS] ms bucket (0..1) and the file's duration. */
+class Envelope(val peaks: FloatArray, val durationSec: Double)
+
 class Pcm(val samples: FloatArray, val sampleRate: Int, val durationSec: Double)
 
 /** Decodes any format Android can decode (and plain WAV / AIFF) to mono floats for analysis. */
@@ -19,7 +22,30 @@ object AudioPcm {
         return mediaCodec(ctx, uri, maxSeconds)
     }
 
-    private fun mediaCodec(ctx: Context, uri: Uri, maxSeconds: Int): Pcm? {
+    /**
+     * Loudness envelope of the whole file: the largest absolute sample in every [BUCKET_MS] milliseconds, streamed so that a long
+     * file costs no more memory than a short one (AIFF is read through the player's WAV adapter and is limited to ten minutes).
+     */
+    fun envelope(ctx: Context, uri: Uri): Envelope? {
+        val ext = uri.getQueryParameter("path")?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        if (ext == "aif" || ext == "aiff" || ext == "aifc") {
+            val p = aiff(ctx, uri, 600) ?: return null
+            val per = (p.sampleRate * BUCKET_MS / 1000).coerceAtLeast(1)
+            val n = (p.samples.size + per - 1) / per
+            return Envelope(FloatArray(n) { b -> var m = 0f; for (i in b * per until minOf((b + 1) * per, p.samples.size)) m = maxOf(m, kotlin.math.abs(p.samples[i])); m }, p.durationSec)
+        }
+        val list = ArrayList<Float>(); var cur = 0f; var cnt = 0
+        val r = mediaCodec(ctx, uri, 6 * 3600) { v, rate ->
+            val a = kotlin.math.abs(v); if (a > cur) cur = a
+            if (++cnt >= rate * BUCKET_MS / 1000) { list.add(cur); cur = 0f; cnt = 0 }
+        } ?: return null
+        if (cnt > 0) list.add(cur)
+        return Envelope(list.toFloatArray(), r.durationSec)
+    }
+
+    const val BUCKET_MS = 20
+
+    private fun mediaCodec(ctx: Context, uri: Uri, maxSeconds: Int, sink: ((Float, Int) -> Unit)? = null): Pcm? {
         val ex = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -36,7 +62,7 @@ object AudioPcm {
             var rate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             var channels = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             var float = false
-            var out = FloatArray(rate * 30)
+            var out = FloatArray(if (sink != null) 0 else rate * 30)
             var n = 0
             val info = MediaCodec.BufferInfo()
             var inputDone = false; var outputDone = false
@@ -57,26 +83,26 @@ object AudioPcm {
                         buf.position(info.offset); buf.limit(info.offset + info.size)
                         val bo = buf.order(ByteOrder.nativeOrder())
                         val frames = if (float) info.size / (4 * channels) else info.size / (2 * channels)
-                        if (n + frames > out.size) out = out.copyOf(maxOf(out.size * 2, n + frames))
+                        if (sink == null && n + frames > out.size) out = out.copyOf(maxOf(out.size * 2, n + frames))
                         for (f in 0 until frames) {
                             var s = 0f
                             for (c in 0 until channels) s += if (float) bo.getFloat() else bo.getShort() / 32768f
-                            out[n++] = s / channels
+                            if (sink != null) { sink(s / channels, rate); n++ } else out[n++] = s / channels
                         }
                         codec.releaseOutputBuffer(oi, false)
-                        if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0 || n >= rate * maxSeconds) outputDone = true
+                        if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0 || n.toLong() >= rate.toLong() * maxSeconds) outputDone = true
                     }
                     oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         val nf = codec.outputFormat
                         rate = nf.getInteger(MediaFormat.KEY_SAMPLE_RATE); channels = nf.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                         float = nf.containsKey(MediaFormat.KEY_PCM_ENCODING) && nf.getInteger(MediaFormat.KEY_PCM_ENCODING) == 4
-                        if (out.size < rate * 30) out = out.copyOf(rate * 30)
+                        if (sink == null && out.size < rate * 30) out = out.copyOf(rate * 30)
                     }
                 }
             }
-            if (n < rate) return null
+            if (if (sink != null) n == 0 else n < rate) return null
             val full = if (durationUs > 0) durationUs / 1e6 else n.toDouble() / rate
-            return Pcm(out.copyOf(n), rate, full)
+            return Pcm(if (sink != null) FloatArray(0) else out.copyOf(n), rate, full)
         } catch (_: Throwable) {
             return null
         } finally {

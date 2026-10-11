@@ -130,14 +130,21 @@ fun rememberPlayerState(uri: Uri): PlayerState {
 @Composable
 internal fun TransportControls(
     s: TransportState, dragging: Boolean, onDrag: (Boolean) -> Unit, onPrev: (() -> Unit)?, onNext: (() -> Unit)?,
-    modifier: Modifier = Modifier, compact: Boolean = false, onFullscreen: (() -> Unit)? = null, fullscreen: Boolean = false, onInteract: () -> Unit = {}
+    modifier: Modifier = Modifier, compact: Boolean = false, onFullscreen: (() -> Unit)? = null, fullscreen: Boolean = false, onInteract: () -> Unit = {},
+    envelope: app.feldkit.audio.Envelope? = null
 ) {
     var speedMenu by remember { mutableStateOf(false) }
     var dragPos by remember { mutableFloatStateOf(0f) }
     val shown = if (dragging) dragPos else s.position.toFloat()
     val big = if (compact) 48.dp else 60.dp
     Column(modifier) {
-        Slider(
+        if (envelope != null) Waveform(
+            envelope, (shown / s.duration.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f),
+            onSeek = { f -> s.seekTo((f * s.duration).toLong()); onInteract() },
+            onScrub = { f -> dragPos = f * s.duration; onInteract() },
+            onScrubbing = { on -> onDrag(on) },
+            modifier = Modifier.padding(vertical = 6.dp),
+        ) else Slider(
             value = shown.coerceIn(0f, s.duration.coerceAtLeast(1).toFloat()),
             onValueChange = { onDrag(true); dragPos = it; onInteract() },
             onValueChangeFinished = { s.seekTo(dragPos.toLong()); onDrag(false) },
@@ -295,6 +302,6 @@ fun AudioPlayerCard(uri: Uri, name: String, sizeText: String, onPrev: (() -> Uni
         if (s.error != null) {
             Text(s.error!!, color = AccentOrange, fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
             if (onOpenExternal != null) GlassButton(onClick = onOpenExternal) { Text("Open with another app") }
-        } else TransportControls(s, dragging, { dragging = it }, onPrev, onNext, Modifier.fillMaxWidth(), compact = true)
+        } else TransportControls(s, dragging, { dragging = it }, onPrev, onNext, Modifier.fillMaxWidth(), compact = true, envelope = rememberEnvelope(uri))
     }
 }
