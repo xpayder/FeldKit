@@ -300,7 +300,7 @@ fun FileBrowserScreen(
             SaveToPhoneDialog(
                 itemCount = pendingCopy.size,
                 onDismiss = { askDest = false; pendingCopy = emptyList() },
-                onStart = { specs, algos, verify, sidecar, mhl -> askDest = false; viewModel.startOffload(context, pendingCopy, specs, algos, verify, sidecar, mhl); pendingCopy = emptyList() }
+                onStart = { specs, algos, verify, sidecar, mhl, report -> askDest = false; viewModel.startOffload(context, pendingCopy, specs, algos, verify, sidecar, mhl, report); pendingCopy = emptyList() }
             )
         }
         if (showNewFolder) TextInputDialog("New folder", "", "Create", { showNewFolder = false }) { viewModel.createFolder(it); showNewFolder = false }

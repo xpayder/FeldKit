@@ -146,7 +146,7 @@ fun GlassDialog(
                 if (text != null) {
                     Spacer(Modifier.height(10.dp))
                     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(color = TextSecondary, fontSize = 14.sp, lineHeight = 20.sp)) {
-                        Box(Modifier.verticalScroll(rememberScrollState())) { text() }
+                        Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { text() }
                     }
                 }
                 Spacer(Modifier.height(18.dp))

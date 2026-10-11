@@ -594,7 +594,7 @@ class FileBrowserViewModel : ViewModel() {
     fun cancelOffload() { offloadEngine?.cancel() }
     fun dismissOffload() { if (offloadEngine == null || _offload.value?.finished == true) _offload.value = null }
 
-    fun startOffload(context: Context, items: List<FileSystemEntry>, specs: List<DestSpec>, algos0: List<app.feldkit.hash.HashAlgo>, verify: Boolean, sidecar: Boolean, mhl: Boolean = false) {
+    fun startOffload(context: Context, items: List<FileSystemEntry>, specs: List<DestSpec>, algos0: List<app.feldkit.hash.HashAlgo>, verify: Boolean, sidecar: Boolean, mhl: Boolean = false, report: Boolean = false) {
         // an MHL history needs one of its own hash formats; xxh64 is the usual one
         val algos = if (mhl && algos0.none { it in app.feldkit.offload.Mhl.ALGOS }) algos0 + app.feldkit.hash.HashAlgo.XXH64 else algos0
         val jobFolder = if (mhl) (ActiveDriveSession.volumes.getOrNull(ActiveDriveSession.currentVolumeIndex)?.name?.takeIf { it.isNotBlank() } ?: "Offload").replace(Regex("[/\\\\:*?\"<>|]"), "_") + " " + java.text.SimpleDateFormat("yyyy-MM-dd HHmm", java.util.Locale.US).format(java.util.Date()) else null
@@ -625,6 +625,10 @@ class FileBrowserViewModel : ViewModel() {
             val results = try { engine.run(items) } finally { poll.cancel() }
             if (sidecar) app.feldkit.offload.Sidecars.write(dests, jobFolder, algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, results)
             if (mhl && jobFolder != null) app.feldkit.offload.Mhl.write(dests, jobFolder, results, algos.first { it in app.feldkit.offload.Mhl.ALGOS }, android.os.Build.MODEL ?: "Android", "1.0")
+            if (report) app.feldkit.offload.Report.write(dests, jobFolder, app.feldkit.offload.ReportInfo(
+                source = ActiveDriveSession.volumes.getOrNull(ActiveDriveSession.currentVolumeIndex)?.name ?: "Drive", device = android.os.Build.MODEL ?: "Android",
+                startedAt = System.currentTimeMillis() - ((System.nanoTime() - engine.progress.startedNs) / 1_000_000L), seconds = (System.nanoTime() - engine.progress.startedNs) / 1e9,
+                destinations = dests.map { it.label }, algos = algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, verified = verify, results = results))
             publish(true)
             offloadEngine = null
             val bad = results.count { !it.ok }
