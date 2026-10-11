@@ -10,6 +10,7 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -28,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -82,17 +84,63 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
     }
     val l = lines
     if (l == null) { Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }; return }
-    SelectionContainer {
-        LazyColumn(modifier.padding(horizontal = 6.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 14.dp)) {
-            itemsIndexed(l) { i, line ->
-                Row {
-                    if (lineNumbers) Text("${i + 1}", color = TextDisabled, fontSize = 11.sp, fontFamily = Mono, lineHeight = 17.sp, modifier = Modifier.width(36.dp).padding(end = 8.dp))
-                    val st = styled?.getOrNull(i)
-                    if (st != null) Text(st, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
-                    else Text(line.trimEnd('\r').ifEmpty { " " }, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
+
+    // ── search ──
+    var searching by remember(uri) { mutableStateOf(false) }
+    var query by remember(uri) { mutableStateOf("") }
+    var matchCase by remember(uri) { mutableStateOf(false) }
+    var useRegex by remember(uri) { mutableStateOf(false) }
+    var current by remember(uri) { mutableIntStateOf(0) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gotoLine = remember(query) { Regex("^:(\\d+)$").find(query.trim())?.groupValues?.get(1)?.toIntOrNull() }
+    val matches by produceState<List<app.feldkit.code.TextSearch.Match>>(emptyList(), l, query, matchCase, useRegex) {
+        value = if (query.isEmpty() || gotoLine != null) emptyList() else withContext(Dispatchers.Default) { app.feldkit.code.TextSearch.find(l, query, matchCase, useRegex) }
+        current = 0
+    }
+    val byLine = remember(matches) { matches.withIndex().groupBy({ it.value.line }, { it }) }
+    LaunchedEffect(matches, current) { matches.getOrNull(current)?.let { listState.animateScrollToItem(it.line) } }
+    LaunchedEffect(gotoLine) { gotoLine?.let { listState.animateScrollToItem((it - 1).coerceIn(0, l.lastIndex)) } }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(searching) { if (searching) focus.requestFocus() }
+
+    Box(modifier) {
+        SelectionContainer {
+            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 6.dp), state = listState, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = if (searching) 62.dp else 14.dp, bottom = 14.dp)) {
+                itemsIndexed(l) { i, line ->
+                    Row {
+                        if (lineNumbers) Text("${i + 1}", color = TextDisabled, fontSize = 11.sp, fontFamily = Mono, lineHeight = 17.sp, modifier = Modifier.width(36.dp).padding(end = 8.dp))
+                        val plain = line.trimEnd('\r').ifEmpty { " " }
+                        val base = styled?.getOrNull(i) ?: androidx.compose.ui.text.AnnotatedString(plain)
+                        val hits = byLine[i]
+                        val text = if (hits == null) base else androidx.compose.ui.text.buildAnnotatedString {
+                            append(base)
+                            for (h in hits) addStyle(androidx.compose.ui.text.SpanStyle(background = if (h.index == current) Accent.copy(alpha = 0.55f) else AccentAmber.copy(alpha = 0.30f)), h.value.start.coerceAtMost(plain.length), h.value.end.coerceAtMost(plain.length))
+                        }
+                        Text(text, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
+                    }
                 }
+                if (truncated) item { Text("Showing the first 512 KB. Use “Open with” for the full file.", color = AccentOrange, fontSize = 12.sp, modifier = Modifier.padding(vertical = 16.dp)) }
             }
-            if (truncated) item { Text("Showing the first 512 KB. Use “Open with” for the full file.", color = AccentOrange, fontSize = 12.sp, modifier = Modifier.padding(vertical = 16.dp)) }
+        }
+        if (!searching) {
+            IconButton(onClick = { searching = true }, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) { Icon(Icons.Default.Search, "Search in file", tint = TextSecondary) }
+        } else {
+            Row(
+                Modifier.align(Alignment.TopCenter).padding(8.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xE60B1016)).padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    query, { query = it }, singleLine = true, textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 14.sp, fontFamily = Mono),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent), modifier = Modifier.weight(1f).focusRequester(focus).padding(horizontal = 6.dp, vertical = 10.dp),
+                    decorationBox = { inner -> if (query.isEmpty()) Text("Find, or :123 for a line", color = TextTertiary, fontSize = 14.sp); inner() }
+                )
+                Text(if (gotoLine != null) "line $gotoLine" else if (query.isEmpty()) "" else if (matches.isEmpty()) "0" else "${current + 1}/${matches.size}", color = TextTertiary, fontSize = 12.sp, fontFamily = Mono)
+                Text("Aa", color = if (matchCase) DeepNavy else TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp).clip(RoundedCornerShape(8.dp)).background(if (matchCase) Accent else Color.Transparent).clickable { matchCase = !matchCase }.padding(horizontal = 8.dp, vertical = 6.dp))
+                Text(".*", color = if (useRegex) DeepNavy else TextSecondary, fontSize = 12.sp, fontFamily = Mono, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (useRegex) Accent else Color.Transparent).clickable { useRegex = !useRegex }.padding(horizontal = 8.dp, vertical = 6.dp))
+                IconButton(onClick = { if (matches.isNotEmpty()) current = (current - 1 + matches.size) % matches.size }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.KeyboardArrowUp, "Previous", tint = TextPrimary) }
+                IconButton(onClick = { if (matches.isNotEmpty()) current = (current + 1) % matches.size }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Next", tint = TextPrimary) }
+                IconButton(onClick = { searching = false; query = "" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.Close, "Close search", tint = TextSecondary) }
+            }
         }
     }
 }
