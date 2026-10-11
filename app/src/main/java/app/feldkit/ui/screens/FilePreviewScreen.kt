@@ -159,6 +159,7 @@ fun FilePreviewScreen(
                 type == FileType.PDF && !failed -> PdfViewer(uri, Modifier.fillMaxSize().padding(top = pad), onFail = { failed = true })
                 (type == FileType.TEXT || type == FileType.CODE) && !failed -> TextViewer(uri, Modifier.fillMaxSize().padding(top = pad), lineNumbers = type == FileType.CODE)
                 type == FileType.ARCHIVE -> if (!failed && ArchiveSession.kindOf(current.name) != null) ArchiveViewer(current, uri, Modifier.fillMaxSize().padding(top = pad), onFail = { failed = true }) else OpenWithView(current, "This archive format needs another app.", { openExternal(context, current) }, { share(context, current) }, Modifier.fillMaxSize().padding(top = pad))
+                type == FileType.PROJECT -> ProjectViewer(current, uri, { openExternal(context, current) }, { share(context, current) }, Modifier.fillMaxSize().padding(top = pad))
                 hexMode -> HexViewer(uri, Modifier.fillMaxSize().padding(top = pad))
                 else -> OpenWithView(
                     current,

@@ -16,6 +16,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -167,4 +168,46 @@ fun OpenWithView(entry: FileSystemEntry, hint: String?, onOpen: () -> Unit, onSh
         }
         if (onHex != null) TextButton(onClick = onHex) { Text("View as hex", color = Accent) }
     }
+}
+
+/** Overview of a music project (Ableton Live, FL Studio, REAPER): DAW and version, tempo, tracks, plug-ins and samples, without the DAW. */
+@Composable
+fun ProjectViewer(entry: FileSystemEntry, uri: Uri, onOpen: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    var loaded by remember(uri) { mutableStateOf(false) }
+    val info by produceState<app.feldkit.audio.DawProject.Info?>(null, uri) { value = withContext(Dispatchers.IO) { app.feldkit.audio.DawProject.read(ctx, uri) }; loaded = true }
+    val i = info
+    if (loaded && i == null) { OpenWithView(entry, "FeldKit could not read the inside of this project.", onOpen, onShare, modifier); return }
+    app.feldkit.ui.components.ViewerPanel(modifier) {
+        if (i == null) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.height(12.dp)); Text("Reading the project…", color = TextTertiary, fontSize = 13.sp)
+            }
+        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
+            item {
+                Text(i.daw + (i.version?.let { "  $it" } ?: ""), color = Accent, fontSize = 13.sp, fontFamily = Mono)
+                Text(entry.name.substringBeforeLast('.'), color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    app.feldkit.audio.DawProject.tempoText(i)?.let { Stat("$it BPM") }
+                    i.meter?.let { Stat(it) }
+                    Stat(entry.formattedSize)
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+            i.sections.forEach { sec ->
+                item(key = sec.title) { Text(sec.title.uppercase(), color = Accent, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)) }
+                items(sec.items) { line -> Text(line, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(vertical = 3.dp)) }
+            }
+            item {
+                Spacer(Modifier.height(18.dp))
+                GlassOutlinedButton(onClick = onOpen, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().height(48.dp)) { Icon(Icons.Default.OpenInNew, null, tint = TextPrimary); Spacer(Modifier.width(8.dp)); Text("Open with…", color = TextPrimary) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stat(text: String) {
+    Text(text, color = TextPrimary, fontSize = 13.sp, fontFamily = Mono, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Fill2).padding(horizontal = 10.dp, vertical = 6.dp))
 }

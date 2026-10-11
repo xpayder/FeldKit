@@ -3,7 +3,7 @@ package app.feldkit.storage.filesystem
 import app.feldkit.storage.filesystem.apfs.ApfsExtent
 
 enum class FileType {
-    IMAGE, VIDEO, AUDIO, DOCUMENT, ARCHIVE, CODE, TEXT, PDF, OTHER, DIRECTORY
+    IMAGE, VIDEO, AUDIO, DOCUMENT, ARCHIVE, CODE, TEXT, PDF, PROJECT, OTHER, DIRECTORY
 }
 
 data class FileSystemEntry(
@@ -50,6 +50,7 @@ data class FileSystemEntry(
         extension in TEXT_EXT -> FileType.TEXT
         extension in DOC_EXT -> FileType.DOCUMENT
         extension in ARCHIVE_EXT -> FileType.ARCHIVE
+        extension in app.feldkit.audio.DawProject.EXTENSIONS -> FileType.PROJECT
         extension in CODE_EXT -> FileType.CODE
         else -> FileType.OTHER
     }

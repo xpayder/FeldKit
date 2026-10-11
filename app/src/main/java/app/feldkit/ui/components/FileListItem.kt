@@ -118,6 +118,7 @@ internal fun getFileIconAndColor(entry: FileSystemEntry): Pair<ImageVector, Colo
     FileType.ARCHIVE -> Pair(if (entry.extension in setOf("dmg", "pkg", "app")) Icons.Default.Apps else Icons.Default.FolderZip, AccentSand)
     FileType.TEXT, FileType.DOCUMENT -> Pair(Icons.Default.Description, TextSecondary)
     FileType.CODE -> Pair(Icons.Default.Code, Accent)
+    FileType.PROJECT -> Pair(Icons.Default.LibraryMusic, AccentGreen)
     else -> Pair(Icons.Default.InsertDriveFile, TextTertiary)
 }
 
