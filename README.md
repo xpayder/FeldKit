@@ -28,6 +28,11 @@ corrupted. No paid "drive reader" subscription needed.
 | "view RAW photos / PSD / EXIF from a card on my phone" | viewer with zoom and an EXIF panel |
 | "unzip / unrar from an external drive on Android" | built-in archive browser and extractor |
 
+## For photographers
+
+- **Cull a shoot on the phone.** In any folder with pictures, menu > "Cull photos": swipe through the folder, give stars, reject, flag a pick and set a colour label. Filters (all, picked, not rated, 3 stars and up, rejected) and a counter ("123 / 540") keep long shoots manageable, and "save these photos" copies exactly what the filter shows, together with their `.xmp` files.
+- **Ratings travel with the files.** When the drive can be written, stars and labels are saved as `.xmp` sidecars next to the photos (`xmp:Rating`, `xmp:Label`), the same fields Lightroom, Bridge and Capture One read. An existing sidecar is edited in place, so develop settings and keywords in it stay untouched (checked with `exiftool`). On a read-only drive the marks stay in FeldKit.
+
 ## For people who make music
 
 - **Real BPM of any audio file.** Open the info of a file and FeldKit measures its tempo on the phone (mp3, m4a/aac, flac, wav, aiff, ogg, opus...). It reads the tempo tags too and shows both, because a tag is often a rounded number. Loops that are cut to whole bars are locked to the exact tempo of the project they came from (typically to 0.01 BPM or better). Tracks without a steady beat say so instead of guessing.

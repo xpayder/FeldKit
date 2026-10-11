@@ -108,6 +108,7 @@ fun FileBrowserScreen(
     var infoOf by remember { mutableStateOf<FileSystemEntry?>(null) }
     var pendingCopy by remember { mutableStateOf<List<FileSystemEntry>>(emptyList()) }
     var askDest by remember { mutableStateOf(false) }
+    var culling by remember { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
 
     val imageLabel by viewModel.imageLabel.collectAsState()
@@ -185,6 +186,7 @@ fun FileBrowserScreen(
                                     if (showHidden) "Hide hidden files" else "Show hidden files",
                                     icon = { Icon(if (showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = TextSecondary) }
                                 ) { viewModel.toggleHidden(); menuOpen = false }
+                                if (visible.any { it.fileType == FileType.IMAGE && !it.isDirectory }) GlassMenuItem("Cull photos", icon = { Icon(Icons.Default.Star, null, tint = TextSecondary) }) { menuOpen = false; culling = true }
                                 GlassMenuItem("Settings", icon = { Icon(Icons.Default.Settings, null, tint = TextSecondary) }) { menuOpen = false; onOpenSettings() }
                             }
                         }
@@ -295,6 +297,15 @@ fun FileBrowserScreen(
             }
         }
 
+        if (culling) app.feldkit.ui.components.GlassPortal { _ -> CullScreen(
+            images = visible.filter { it.fileType == FileType.IMAGE && !it.isDirectory }, folder = entries, volumeName = driveName, viewModel = viewModel, writable = writable,
+            onSaveShown = { photos ->
+                // the matching .xmp sidecars travel with the photos
+                val side = entries.filter { it.extension == "xmp" }.associateBy { it.name.substringBeforeLast('.').lowercase() }
+                askDestination(photos + photos.mapNotNull { side[it.name.substringBeforeLast('.').lowercase()] })
+            },
+            onClose = { culling = false },
+        ) }
         // ── dialogs ──────────────────────────────────────────────────────────
         if (askDest) {
             SaveToPhoneDialog(

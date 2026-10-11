@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class BreadcrumbItem(val name: String, val path: String)
@@ -279,6 +280,37 @@ class FileBrowserViewModel : ViewModel() {
     // ── Write operations ──────────────────────────────────────────────────────
 
     /** Directory entry for [path] (usable as a write parent), or null if it can't be resolved. */
+    private val xmpLock = kotlinx.coroutines.sync.Mutex()
+
+    /** The rating / label / text of an XMP sidecar on the drive. */
+    suspend fun readXmp(entry: FileSystemEntry): app.feldkit.photo.Xmp.Data? = withContext(Dispatchers.IO) {
+        val bytes = try { reader?.readFile(entry) } catch (_: Exception) { null } ?: return@withContext null
+        if (bytes.size > 4 shl 20) return@withContext null
+        app.feldkit.photo.Xmp.parse(String(bytes, Charsets.UTF_8))
+    }
+
+    /**
+     * Sets rating and label in the photo's `.xmp` sidecar (same folder, same name). An existing sidecar is edited in place,
+     * a missing one is created, and nothing is created for a photo that has no marks.
+     */
+    suspend fun writeXmp(photo: FileSystemEntry, rating: Int, label: String?): Boolean = xmpLock.withLock {
+        withContext(Dispatchers.IO) {
+            val w = ActiveDriveSession.writer ?: return@withContext false
+            val r = reader ?: return@withContext false
+            try {
+                val dir = photo.path.substringBeforeLast('/').ifEmpty { "/" }
+                val stem = photo.name.substringBeforeLast('.')
+                val existing = r.listDirectory(currentVolumeIndex, dir).firstOrNull { !it.isDirectory && it.name.equals("$stem.xmp", true) }
+                val old = existing?.let { r.readFile(it) }?.toString(Charsets.UTF_8)
+                if (old == null && rating == 0 && label == null) return@withContext true
+                val text = if (old != null) app.feldkit.photo.Xmp.update(old, rating, label) else app.feldkit.photo.Xmp.create(rating, label)
+                val parent = resolveDirEntry(dir) ?: return@withContext false
+                existing?.let { w.deleteEntry(it) }
+                w.writeFile(parent, existing?.name ?: "$stem.xmp", text.toByteArray(Charsets.UTF_8))
+            } catch (e: Exception) { Log.w(TAG, "writeXmp failed", e); false }
+        }
+    }
+
     private fun resolveDirEntry(path: String): FileSystemEntry? {
         val r = reader ?: return null
         var cur = r.rootEntry(currentVolumeIndex)
