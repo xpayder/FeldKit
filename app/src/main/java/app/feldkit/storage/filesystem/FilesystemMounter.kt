@@ -27,6 +27,8 @@ object FilesystemMounter {
     @Volatile var enableApfsWrite: Boolean = false
     /** Opt-in switch for the experimental NTFS writer (Settings > Experimental). */
     @Volatile var enableNtfsWrite: Boolean = false
+    /** Opt-in switch for writing through unlocked BitLocker and LUKS containers (Settings > Experimental). */
+    @Volatile var enableEncryptedWrite: Boolean = false
     private const val TAG = "FeldKit"
 
     /** A filesystem found on the device (one per partition; APFS may expose several volumes). */
@@ -148,18 +150,21 @@ object FilesystemMounter {
         return Pair(reader, null)   // read-only
     }
 
-    /** Mounts the filesystem inside an unlocked container (starts at sector 0 of [device]); never a nested BitLocker. */
+    /**
+     * Mounts the filesystem inside an unlocked container (starts at sector 0 of [device]); never a nested BitLocker. With
+     * [enableEncryptedWrite] on, the filesystem's own writer is returned too: its sector writes go through the container's cipher.
+     */
     fun mountInner(device: BlockDeviceReader): Pair<FileSystemReader, FileSystemWriter?>? {
-        // BitLocker volumes stay read-only: nothing is re-encrypted, so the inner writers are dropped
-        return tryNtfs(device, 0, allowWrite = false)?.let { it.first to null } ?: tryExFat(device, 0)?.let { it.first to null }
-            ?: tryFat32(device, 0)?.let { it.first to null } ?: tryHfsPlus(device, 0)?.let { it.first to null }
+        val w = enableEncryptedWrite
+        fun cut(p: Pair<FileSystemReader, FileSystemWriter?>?) = p?.let { it.first to (if (w) it.second else null) }
+        return cut(tryNtfs(device, 0)) ?: cut(tryExFat(device, 0)) ?: cut(tryFat32(device, 0)) ?: cut(tryHfsPlus(device, 0))
     }
 
     private fun tryNtfs(device: BlockDeviceReader, lba: Long, allowWrite: Boolean = true): Pair<FileSystemReader, FileSystemWriter?>? {
         val reader = app.feldkit.storage.filesystem.ntfs.NtfsReader(device, lba)
         if (!reader.mount()) return null
         Log.i(TAG, "NTFS at LBA $lba")
-        // Experimental writer: off unless the user enabled it (Settings > Experimental); never for a BitLocker container
+        // Experimental writer: off unless the user enabled it (Settings > Experimental)
         return Pair(reader, if (enableNtfsWrite && allowWrite) app.feldkit.storage.filesystem.ntfs.NtfsWriter(reader) else null)
     }
 

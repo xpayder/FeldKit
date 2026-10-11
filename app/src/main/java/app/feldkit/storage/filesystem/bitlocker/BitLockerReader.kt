@@ -40,15 +40,40 @@ class BitLockerDevice(
         }
         return out
     }
+
+    override fun dropReadCache() = raw.dropReadCache()
+    override fun flushCache() = raw.flushCache()
+    override fun writeSector(lba: Long, data: ByteArray): Boolean = writeSectors(lba, data)
+
+    /** Encrypts whole sectors and writes them where BitLocker keeps them (the first sectors live in the relocated header area). */
+    override fun writeSectors(startLba: Long, data: ByteArray): Boolean {
+        val count = data.size / 512
+        if (data.size % 512 != 0 || startLba < 0 || startLba + count > total) return false
+        var done = 0
+        while (done < count) {
+            val l = startLba + done
+            val inHeader = l < hdrSectors
+            val phys = if (inHeader) hdrBase + l else l
+            val run = if (inHeader) minOf(count - done.toLong(), hdrSectors - l).toInt() else count - done
+            val enc = ByteArray(run * 512)
+            for (i in 0 until run) cipher.encrypt(data, (done + i) * 512, enc, i * 512, phys + i)
+            if (!raw.writeSectors(this.startLba + phys, enc)) return false
+            done += run
+        }
+        return true
+    }
 }
 
 /**
  * A BitLocker volume that must be unlocked (password or 48-digit recovery password) before it can be read; afterwards it
- * delegates to the NTFS / exFAT / FAT32 filesystem inside. Read-only.
+ * delegates to the NTFS / exFAT / FAT32 filesystem inside. Writing (experimental, Settings) encrypts every sector on its way to the drive.
  */
 class BitLockerReader(private val dev: BlockDeviceReader, private val startLba: Long) : FileSystemReader {
     private var info: BitLocker.Info? = null
     private var inner: FileSystemReader? = null
+    private var innerW: app.feldkit.storage.filesystem.FileSystemWriter? = null
+
+    override fun innerWriter(volumeIndex: Int) = innerW
 
     override fun mount(): Boolean {
         info = BitLocker.load(dev, startLba) ?: return false
@@ -61,7 +86,7 @@ class BitLockerReader(private val dev: BlockDeviceReader, private val startLba: 
     private fun openWith(fvek: ByteArray): Boolean {
         val i = info ?: return false
         val m = FilesystemMounter.mountInner(BitLockerDevice(dev, startLba, i, fvek)) ?: return false
-        inner = m.first
+        inner = m.first; innerW = m.second
         return true
     }
 
@@ -90,5 +115,5 @@ class BitLockerReader(private val dev: BlockDeviceReader, private val startLba: 
     override fun readFileTo(entry: FileSystemEntry, out: OutputStream, onProgress: ((Long) -> Unit)?) = inner?.readFileTo(entry, out, onProgress) ?: false
     override fun readRange(entry: FileSystemEntry, offset: Long, buf: ByteArray, bufOff: Int, len: Int) = inner?.readRange(entry, offset, buf, bufOff, len) ?: -1
     override fun rootEntry(volumeIndex: Int) = inner?.rootEntry(volumeIndex) ?: super.rootEntry(volumeIndex)
-    override fun unmount() { inner?.unmount(); inner = null; info = null }
+    override fun unmount() { inner?.unmount(); inner = null; innerW = null; info = null }
 }

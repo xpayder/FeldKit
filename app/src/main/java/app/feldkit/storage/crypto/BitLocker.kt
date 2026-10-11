@@ -255,5 +255,17 @@ object BitLocker {
             val c = Cipher.getInstance("AES/CBC/NoPadding").apply { init(Cipher.DECRYPT_MODE, cbcKey, IvParameterSpec(ivEnc)) }
             c.doFinal(src, srcOff, 512, dst, dstOff)
         }
+
+        /** Encrypts the 512-byte plaintext sector that belongs at physical sector [sector]; the inverse of [decrypt]. */
+        @Synchronized
+        fun encrypt(src: ByteArray, srcOff: Int, dst: ByteArray, dstOff: Int, sector: Long) {
+            if (xts != null) { xts.encryptUnit(src, srcOff, 512, dst, dstOff, sector); return }
+            val iv = ByteArray(16)
+            val byteOff = sector * 512
+            for (i in 0..7) iv[i] = (byteOff ushr (8 * i)).toByte()
+            val ivEnc = ecb!!.doFinal(iv)
+            val c = Cipher.getInstance("AES/CBC/NoPadding").apply { init(Cipher.ENCRYPT_MODE, cbcKey, IvParameterSpec(ivEnc)) }
+            c.doFinal(src, srcOff, 512, dst, dstOff)
+        }
     }
 }

@@ -107,6 +107,8 @@ class MainActivity : ComponentActivity() {
         app.feldkit.storage.usb.UsbTuning.fastReads = getSharedPreferences("vx_prefs", MODE_PRIVATE).getBoolean("fast_usb_v2", true)
         app.feldkit.storage.filesystem.FilesystemMounter.enableNtfsWrite =
             getSharedPreferences("vx_prefs", MODE_PRIVATE).getBoolean("ntfs_write", false)
+        app.feldkit.storage.filesystem.FilesystemMounter.enableEncryptedWrite =
+            getSharedPreferences("vx_prefs", MODE_PRIVATE).getBoolean("encrypted_write", false)
 
         setContent {
             FeldKitTheme {

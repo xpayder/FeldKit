@@ -60,7 +60,7 @@ class CompositeReader(private val parts: List<FilesystemMounter.MountedPartition
     /** The writer for the partition holding [volumeIndex] (null if that filesystem is read-only). */
     fun writerFor(volumeIndex: Int): FileSystemWriter? {
         val s = slot(volumeIndex) ?: return null
-        return parts[s.part].writer?.let { PartitionWriter(it, s.part) }
+        return (parts[s.part].writer ?: parts[s.part].reader.innerWriter(s.local))?.let { PartitionWriter(it, s.part) }
     }
 
     override fun unmount() { parts.forEach { it.reader.unmount() } }

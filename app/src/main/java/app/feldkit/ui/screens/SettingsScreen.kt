@@ -58,6 +58,8 @@ fun SettingsScreen(
                     var confirmApfs by remember { mutableStateOf(false) }
                     var ntfsWrite by remember { mutableStateOf(prefs.getBoolean("ntfs_write", false)) }
                     var confirmNtfs by remember { mutableStateOf(false) }
+                    var encWrite by remember { mutableStateOf(prefs.getBoolean("encrypted_write", false)) }
+                    var confirmEnc by remember { mutableStateOf(false) }
                     SettingsSection(title = "Experimental") {
                         SettingsToggleRow(
                             icon = Icons.Default.Warning,
@@ -72,6 +74,26 @@ fun SettingsScreen(
                             subtitle = "Creates, renames and deletes files and folders on Windows drives. Checked against ntfs-3g, not against Windows chkdsk. Only works on drives Windows shut down cleanly (turn off Fast Startup); it refuses otherwise. Keep a backup. Applies the next time you connect a drive.",
                             checked = ntfsWrite,
                             onToggle = { if (ntfsWrite) { ntfsWrite = false; prefs.edit().putBoolean("ntfs_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableNtfsWrite = false } else confirmNtfs = true }
+                        )
+                        SettingsToggleRow(
+                            icon = Icons.Default.Warning,
+                            title = "Write to BitLocker and LUKS volumes",
+                            subtitle = "After you unlock an encrypted drive, FeldKit can write to the file system inside (exFAT, FAT32, NTFS if enabled above, ext if enabled) and encrypts every sector on its way to the drive. Checked against dislocker and cryptsetup, not against Windows or Linux themselves. A power loss or unplugging during a write can leave the volume needing repair. Keep a backup. Applies the next time you connect a drive.",
+                            checked = encWrite,
+                            onToggle = { if (encWrite) { encWrite = false; prefs.edit().putBoolean("encrypted_write", false).apply(); app.feldkit.storage.filesystem.FilesystemMounter.enableEncryptedWrite = false } else confirmEnc = true }
+                        )
+                    }
+                    if (confirmEnc) {
+                        GlassDialog(
+                            onDismissRequest = { confirmEnc = false },
+                            title = { Text("Enable writing to encrypted volumes?", color = TextPrimary) },
+                            text = { Text("This is experimental. Use it only on drives you have backed up, and never unplug the drive during a transfer.", color = TextSecondary) },
+                            confirmButton = { TextButton(onClick = {
+                                encWrite = true; confirmEnc = false
+                                prefs.edit().putBoolean("encrypted_write", true).apply()
+                                app.feldkit.storage.filesystem.FilesystemMounter.enableEncryptedWrite = true
+                            }) { Text("Enable", color = Accent) } },
+                            dismissButton = { TextButton(onClick = { confirmEnc = false }) { Text("Cancel", color = TextTertiary) } }
                         )
                     }
                     if (confirmNtfs) {

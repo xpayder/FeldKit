@@ -64,6 +64,9 @@ interface FileSystemReader {
     /** Unlocks an encrypted volume with a password / recovery key. Returns false if the secret is wrong. */
     fun unlock(volumeIndex: Int, secret: String): Boolean = false
 
+    /** For an encrypted container: the writer of the filesystem inside once it is unlocked (null when read-only). */
+    fun innerWriter(volumeIndex: Int): FileSystemWriter? = null
+
     /** Release resources. */
     fun unmount()
 }
