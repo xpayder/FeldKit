@@ -31,6 +31,7 @@ corrupted. No paid "drive reader" subscription needed.
 ## For people who make music
 
 - **Real BPM of any audio file.** Open the info of a file and FeldKit measures its tempo on the phone (mp3, m4a/aac, flac, wav, aiff, ogg, opus...). It reads the tempo tags too and shows both, because a tag is often a rounded number. Loops that are cut to whole bars are locked to the exact tempo of the project they came from (typically to 0.01 BPM or better). Tracks without a steady beat say so instead of guessing.
+- **Musical key.** Next to the tempo the info sheet shows the key in both notations, for example "F# minor · 11A" (the Camelot code DJs use), the key that shares the same notes, and the next best guess. MIDI files are read from their notes. For audio it is an estimate and a hard one: on 184 loops from sample packs that state their key in the name, about 35 % match exactly and 45 % match or land on the relative key (`tools/make-key-labels.py` + `KeyTest`); on synthetic chord progressions in all 24 keys it is 24 of 24. Loops of one or two notes, bass and drums are the weak spot, so a doubtful reading says "uncertain" and always lists the alternative.
 - **MIDI clips play with a piano and a drum kit.** Pitched parts sound as a piano, drum parts (GM channel 10, or a kit pattern on any channel, or a file named "Hi Hat 12" / "Kick 03") as a drum kit. Both are synthesised by FeldKit, so it sounds the same on every phone. The tempo is read from the file.
 
 ### How accurate is the BPM?

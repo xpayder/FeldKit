@@ -349,12 +349,12 @@ private val AudioTempoExt = setOf("mp3", "aac", "flac", "wav", "m4a", "ogg", "og
 private fun TempoSection(uri: Uri) {
     val ctx = LocalContext.current
     val info by produceState<app.feldkit.audio.TempoInfo?>(null, uri) { value = withContext(Dispatchers.IO) { try { app.feldkit.audio.TempoService.analyze(ctx, uri) } catch (_: Throwable) { null } } }
-    Text("TEMPO", color = Accent, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+    Text("TEMPO AND KEY", color = Accent, fontSize = 11.sp, fontFamily = Mono, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
     val i = info
     if (i == null) {
         Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(10.dp)); Text("Measuring the tempo…", color = TextTertiary, fontSize = 13.sp)
+            Spacer(Modifier.width(10.dp)); Text("Measuring tempo and key…", color = TextTertiary, fontSize = 13.sp)
         }
         return
     }
@@ -382,6 +382,19 @@ private fun TempoSection(uri: Uri) {
         Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
             Text("BPM", color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
             Text(if (i.unsupported) "This format cannot be analysed on the phone" else "No steady beat found", color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        }
+    }
+    i.key?.let { k ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
+            Text("Key", color = TextTertiary, fontSize = 13.sp, modifier = Modifier.width(120.dp))
+            Column(Modifier.weight(1f)) {
+                Text("${k.key.name}  ·  ${k.key.camelot}", color = Accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = Mono)
+                Text(
+                    (if (i.fromFile) "from the notes in the file" else if (k.likely) "clear tonal centre" else "uncertain: the harmony is ambiguous") +
+                        ". Same notes as ${k.key.relative.name} (${k.key.relative.camelot}); next guess ${k.alternative.name}.",
+                    color = TextTertiary, fontSize = 12.sp,
+                )
+            }
         }
     }
     i.tag?.let { t ->
