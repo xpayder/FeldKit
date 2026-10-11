@@ -28,6 +28,10 @@ corrupted. No paid "drive reader" subscription needed.
 | "view RAW photos / PSD / EXIF from a card on my phone" | viewer with zoom and an EXIF panel |
 | "unzip / unrar from an external drive on Android" | built-in archive browser and extractor |
 
+## Releases
+
+A tag such as `v1.2.0` makes GitHub Actions build the optimised release APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64` and a universal one), sign them, and attach them to a GitHub release together with `SHA256SUMS.txt` (workflow: `.github/workflows/release.yml`). Signing material comes from repository secrets; `tools/make-release-keystore.sh` creates the key on your own machine and prints the four values to store. Without the secrets the workflow still runs and signs with a throwaway key, and the release is marked as a pre-release, because phones refuse to update an app over a build signed with another key. Every push is built and tested by `.github/workflows/ci.yml`. Local release build: `./gradlew :app:assembleRelease -PallAbis` (set the `FELDKIT_KEYSTORE_*` variables or `keystore.properties`).
+
 ## For developers
 
 - **Source code you can read.** Syntax colours for Kotlin, Java, C/C++, C#, JavaScript/TypeScript, Python, Rust, Go, Swift, shell, Ruby, PHP, Lua, SQL, CSS, JSON, XML/HTML, Markdown, YAML, TOML, INI, Makefile and Dockerfile (by extension or `#!` line), with line numbers.
