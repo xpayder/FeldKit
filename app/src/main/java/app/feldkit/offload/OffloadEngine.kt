@@ -20,6 +20,8 @@ class FileResult(
     val hashes: Map<HashAlgo, String>?,
     val perDest: List<DestResult>,
     val error: String? = null,
+    /** Last-modified time of the source file (ms since epoch). */
+    val modified: Long = 0L,
 ) {
     val ok: Boolean get() = error == null && perDest.all { it.status == DestStatus.VERIFIED || it.status == DestStatus.COPIED }
     val path: String get() = relPath.joinToString("/")
@@ -140,7 +142,7 @@ class OffloadEngine(
         if (readError != null) {
             hasher.finish()
             for (w in writers) try { w.sink?.abort() } catch (_: Exception) {}
-            return FileResult(f.rel, f.entry.size, null, writers.map { DestResult(it.dest.label, DestStatus.ERROR, name, readError) }, readError)
+            return FileResult(f.rel, f.entry.size, null, writers.map { DestResult(it.dest.label, DestStatus.ERROR, name, readError) }, readError, f.entry.modifiedAt)
         }
         val hashes = hasher.finishHex()
         for (w in writers) {
@@ -168,6 +170,6 @@ class OffloadEngine(
         }
         verifyThreads.forEach { it.join() }
         progress.verifiedBytes += f.entry.size
-        return FileResult(f.rel, f.entry.size, hashes, results.map { it!! })
+        return FileResult(f.rel, f.entry.size, hashes, results.map { it!! }, null, f.entry.modifiedAt)
     }
 }

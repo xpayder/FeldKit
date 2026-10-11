@@ -31,12 +31,12 @@ object Sidecars {
         val folder = if (jobFolder.isNullOrEmpty()) emptyList() else listOf(jobFolder)
         val stamp = stamp()
         for (d in dests) for (a in algos) {
-            val text = listText(a, d.label, results, folder)
+            val text = listText(a, d.label, results, emptyList())
             if (text.isEmpty()) continue
             try {
                 val sink = d.dir(folder).create("FeldKit $stamp.${a.fileExt}")
                 val bytes = text.toByteArray(); sink.write(bytes, 0, bytes.size); sink.finish()
-            } catch (_: Exception) { /* a missing checksum list must not fail the copy itself */ }
+            } catch (e: Exception) { android.util.Log.w("FeldKit", "checksum list not written", e) }
         }
     }
 }

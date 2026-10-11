@@ -594,7 +594,10 @@ class FileBrowserViewModel : ViewModel() {
     fun cancelOffload() { offloadEngine?.cancel() }
     fun dismissOffload() { if (offloadEngine == null || _offload.value?.finished == true) _offload.value = null }
 
-    fun startOffload(context: Context, items: List<FileSystemEntry>, specs: List<DestSpec>, algos: List<app.feldkit.hash.HashAlgo>, verify: Boolean, sidecar: Boolean) {
+    fun startOffload(context: Context, items: List<FileSystemEntry>, specs: List<DestSpec>, algos0: List<app.feldkit.hash.HashAlgo>, verify: Boolean, sidecar: Boolean, mhl: Boolean = false) {
+        // an MHL history needs one of its own hash formats; xxh64 is the usual one
+        val algos = if (mhl && algos0.none { it in app.feldkit.offload.Mhl.ALGOS }) algos0 + app.feldkit.hash.HashAlgo.XXH64 else algos0
+        val jobFolder = if (mhl) (ActiveDriveSession.volumes.getOrNull(ActiveDriveSession.currentVolumeIndex)?.name?.takeIf { it.isNotBlank() } ?: "Offload").replace(Regex("[/\\\\:*?\"<>|]"), "_") + " " + java.text.SimpleDateFormat("yyyy-MM-dd HHmm", java.util.Locale.US).format(java.util.Date()) else null
         val r = reader ?: return
         if (items.isEmpty() || specs.isEmpty() || offloadEngine != null) return
         val used = HashSet<String>()
@@ -604,7 +607,7 @@ class FileBrowserViewModel : ViewModel() {
                 is DestSpec.Tree -> app.feldkit.offload.SafDestination(context.applicationContext, sp.uri, if (used.contains(sp.label)) "${sp.label} (${i + 1})" else sp.label)
             }.also { used.add(it.label) }
         }
-        val engine = app.feldkit.offload.OffloadEngine(r, currentVolumeIndex, dests, app.feldkit.offload.OffloadConfig(algos = algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, verify = verify))
+        val engine = app.feldkit.offload.OffloadEngine(r, currentVolumeIndex, dests, app.feldkit.offload.OffloadConfig(algos = algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, verify = verify, jobFolder = jobFolder))
         offloadEngine = engine
         launchTransfer(context) {
             fun publish(done: Boolean) {
@@ -620,7 +623,8 @@ class FileBrowserViewModel : ViewModel() {
             }
             val poll = launch { while (isActive) { publish(false); kotlinx.coroutines.delay(250) } }
             val results = try { engine.run(items) } finally { poll.cancel() }
-            if (sidecar) app.feldkit.offload.Sidecars.write(dests, null, algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, results)
+            if (sidecar) app.feldkit.offload.Sidecars.write(dests, jobFolder, algos.ifEmpty { listOf(app.feldkit.hash.HashAlgo.XXH64) }, results)
+            if (mhl && jobFolder != null) app.feldkit.offload.Mhl.write(dests, jobFolder, results, algos.first { it in app.feldkit.offload.Mhl.ALGOS }, android.os.Build.MODEL ?: "Android", "1.0")
             publish(true)
             offloadEngine = null
             val bad = results.count { !it.ok }

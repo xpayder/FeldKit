@@ -91,7 +91,7 @@ private fun treeLabel(ctx: Context, tree: Uri): String {
 fun SaveToPhoneDialog(
     itemCount: Int,
     onDismiss: () -> Unit,
-    onStart: (specs: List<DestSpec>, algos: List<HashAlgo>, verify: Boolean, sidecar: Boolean) -> Unit,
+    onStart: (specs: List<DestSpec>, algos: List<HashAlgo>, verify: Boolean, sidecar: Boolean, mhl: Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
     val prefs = remember { ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -99,6 +99,7 @@ fun SaveToPhoneDialog(
     val chosen = remember { mutableStateListOf<DestSpec>(DestSpec.Downloads) }
     var verify by remember { mutableStateOf(prefs.getBoolean("verify_copies", true)) }
     var sidecar by remember { mutableStateOf(prefs.getBoolean("write_manifest", false)) }
+    var mhl by remember { mutableStateOf(prefs.getBoolean("write_mhl", false)) }
     val algos = remember { mutableStateListOf<HashAlgo>().also { l -> (prefs.getString("offload_algos", "XXH64") ?: "XXH64").split(',').mapNotNull { n -> HashAlgo.values().firstOrNull { it.name == n } }.ifEmpty { listOf(HashAlgo.XXH64) }.forEach { l.add(it) } } }
     var more by remember { mutableStateOf(false) }
 
@@ -152,6 +153,7 @@ fun SaveToPhoneDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ToggleRow("Check every copy by reading it back", verify) { verify = it }
                         ToggleRow("Write a checksum list (xxhsum, shasum compatible)", sidecar) { sidecar = it }
+                        ToggleRow("ASC MHL history (for film and DIT workflows)", mhl) { mhl = it }
                         Text("Checksums", color = TextTertiary, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             HashAlgo.values().forEach { a ->
@@ -162,15 +164,15 @@ fun SaveToPhoneDialog(
                                 )
                             }
                         }
-                        Text("Each file is read from the drive once, hashed on the way, and written to every place at the same time.", color = TextTertiary, fontSize = 12.sp)
+                        Text(if (mhl) "The copy goes into its own dated folder with an ascmhl folder inside; the checksum format is the first of xxh64, xxh3, xxh128, MD5, SHA-1 or C4 you picked (xxh64 if none)." else "Each file is read from the drive once, hashed on the way, and written to every place at the same time.", color = TextTertiary, fontSize = 12.sp)
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                prefs.edit().putBoolean("verify_copies", verify).putBoolean("write_manifest", sidecar).putString("offload_algos", algos.joinToString(",") { it.name }).apply()
-                onStart(chosen.toList(), algos.toList(), verify, sidecar)
+                prefs.edit().putBoolean("verify_copies", verify).putBoolean("write_manifest", sidecar).putBoolean("write_mhl", mhl).putString("offload_algos", algos.joinToString(",") { it.name }).apply()
+                onStart(chosen.toList(), algos.toList(), verify, sidecar, mhl)
             }) { Text("Save $itemCount item${if (itemCount != 1) "s" else ""}", color = Accent) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = TextTertiary) } }
