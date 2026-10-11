@@ -55,6 +55,21 @@ class LvmBlockDevice(
         return pv.writeSector(pvLba, data)
     }
 
+    /** Writes follow the extent map in whole runs, like reads. */
+    override fun writeSectors(startLba: Long, data: ByteArray): Boolean {
+        val ss = sectorSize(); val count = data.size / ss; var done = 0
+        if (data.size % ss != 0) return false
+        while (done < count) {
+            val lba = startLba + done
+            val (pvLba, _) = mapLba(lba) ?: return false
+            val n = minOf(count - done, (extentSizeSectors - lba % extentSizeSectors).toInt())
+            if (!pv.writeSectors(pvLba, data.copyOfRange(done * ss, (done + n) * ss))) return false
+            done += n
+        }
+        return true
+    }
+
+    override fun dropReadCache() = pv.dropReadCache()
     override fun flushCache(): Boolean = pv.flushCache()
 
     /**

@@ -194,31 +194,58 @@ object Luks {
             val realIv = essivCipher?.doFinal(iv) ?: iv
             Cipher.getInstance("AES/CBC/NoPadding").apply { init(Cipher.DECRYPT_MODE, cbcKey, IvParameterSpec(realIv)) }.doFinal(src, srcOff, unit, dst, dstOff)
         }
+
+        /** Encrypts the [unit]-byte plaintext sector at [src]/[srcOff] for sector index [sector]; the inverse of [decrypt]. */
+        @Synchronized fun encrypt(src: ByteArray, srcOff: Int, dst: ByteArray, dstOff: Int, sector: Long) {
+            if (xts != null) { xts.encryptUnit(src, srcOff, unit, dst, dstOff, sector); return }
+            val iv = ByteArray(16)
+            if (m.contains("plain64") || essivCipher != null) { for (i in 0..7) iv[i] = (sector ushr (8 * i)).toByte() } else for (i in 0..3) iv[i] = (sector ushr (8 * i)).toByte()
+            val realIv = essivCipher?.doFinal(iv) ?: iv
+            Cipher.getInstance("AES/CBC/NoPadding").apply { init(Cipher.ENCRYPT_MODE, cbcKey, IvParameterSpec(realIv)) }.doFinal(src, srcOff, unit, dst, dstOff)
+        }
     }
 }
 
-/** The decrypted payload of an unlocked LUKS container, as 512-byte sectors. */
+/**
+ * The decrypted payload of an unlocked LUKS container. Like dm-crypt it presents sectors of the container's encryption sector
+ * size (512 or 4096 bytes), so a file system made on a 4 KiB-sector container sees 4 KiB sectors.
+ */
 class LuksDevice(private val raw: BlockDeviceReader, private val startLba: Long, private val info: Luks.Info, key: ByteArray) : BlockDeviceReader {
     private val cipher = Luks.SectorCipher(info.mode, key, info.sectorSize)
-    private val payloadSectors = info.payloadOffset / 512
-    private val total: Long = if (info.payloadSize >= 0) info.payloadSize / 512 else (raw.sectorCount() - startLba - payloadSectors).coerceAtLeast(0)
+    private val ss = info.sectorSize
+    private val perUnit = ss / 512                                  // 512-byte raw sectors per unit
+    private val payloadSectors = info.payloadOffset / 512           // in raw 512-byte sectors
+    private val total512: Long = if (info.payloadSize >= 0) info.payloadSize / 512 else (raw.sectorCount() - startLba - payloadSectors).coerceAtLeast(0)
+    private val total = total512 / perUnit
     override fun open() = true
     override fun close() {}
     override fun isOpen() = true
-    override fun sectorSize() = 512
+    override fun sectorSize() = ss
     override fun sectorCount() = total
 
     override fun readSector(lba: Long): ByteArray? = readSectors(lba, 1)
 
     override fun readSectors(startLba: Long, count: Int): ByteArray? {
         if (startLba < 0 || startLba + count > total) return null
-        val unitSectors = info.sectorSize / 512
-        val firstUnit = startLba / unitSectors; val lastUnit = (startLba + count - 1) / unitSectors
-        val raw = raw.readSectors(this.startLba + payloadSectors + firstUnit * unitSectors, ((lastUnit - firstUnit + 1) * unitSectors).toInt()) ?: return null
-        val plain = ByteArray(raw.size)
-        for (u in 0..(lastUnit - firstUnit).toInt()) cipher.decrypt(raw, u * info.sectorSize, plain, u * info.sectorSize, firstUnit + u + info.ivTweak)
-        val skip = ((startLba - firstUnit * unitSectors) * 512).toInt()
-        return plain.copyOfRange(skip, skip + count * 512)
+        val enc = raw.readSectors(this.startLba + payloadSectors + startLba * perUnit, count * perUnit) ?: return null
+        val plain = ByteArray(enc.size)
+        // dm-crypt counts the IV / tweak in 512-byte sectors even when the encryption sector is 4096 bytes
+        for (u in 0 until count) cipher.decrypt(enc, u * ss, plain, u * ss, (startLba + u) * perUnit + info.ivTweak)
+        return plain
+    }
+
+    override fun dropReadCache() = raw.dropReadCache()
+    override fun flushCache() = raw.flushCache()
+    override fun writeSector(lba: Long, data: ByteArray): Boolean = writeSectors(lba, data)
+
+    /** Encrypts whole sectors and writes them to the container. */
+    override fun writeSectors(startLba: Long, data: ByteArray): Boolean {
+        if (data.size % ss != 0) return false
+        val count = data.size / ss
+        if (startLba < 0 || startLba + count > total) return false
+        val enc = ByteArray(data.size)
+        for (u in 0 until count) cipher.encrypt(data, u * ss, enc, u * ss, (startLba + u) * perUnit + info.ivTweak)
+        return raw.writeSectors(this.startLba + payloadSectors + startLba * perUnit, enc)
     }
 }
 
