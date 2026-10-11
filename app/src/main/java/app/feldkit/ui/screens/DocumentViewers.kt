@@ -59,13 +59,24 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
     val ctx = LocalContext.current
     var lines by remember(uri) { mutableStateOf<List<String>?>(null) }
     var truncated by remember(uri) { mutableStateOf(false) }
+    var styled by remember(uri) { mutableStateOf<List<androidx.compose.ui.text.AnnotatedString>?>(null) }
     LaunchedEffect(uri) {
         withContext(Dispatchers.IO) {
             try {
                 val cap = 512 * 1024
                 val buf = ByteArray(cap); var n = 0
                 ctx.contentResolver.openInputStream(uri)?.use { ins -> while (n < cap) { val r = ins.read(buf, n, cap - n); if (r <= 0) break; n += r }; truncated = ins.read() >= 0 }
-                lines = String(buf, 0, n, Charsets.UTF_8).split('\n')
+                val all = String(buf, 0, n, Charsets.UTF_8).split('\n')
+                lines = all
+                val name = uri.getQueryParameter("path")?.substringAfterLast('/').orEmpty()
+                val lang = app.feldkit.code.Highlighter.languageOf(name, all.firstOrNull().orEmpty())
+                if (lang != null) styled = app.feldkit.code.Highlighter.highlight(lang, all).mapIndexed { i, spans ->
+                    val line = all[i].trimEnd('\r').ifEmpty { " " }
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        append(line)
+                        for (sp in spans) addStyle(styleOf(sp.kind), sp.start.coerceAtMost(line.length), sp.end.coerceAtMost(line.length))
+                    }
+                }
             } catch (e: Exception) { lines = listOf("Cannot read file: ${e.message}") }
         }
     }
@@ -76,12 +87,29 @@ private fun TextViewerBody(uri: Uri, modifier: Modifier, lineNumbers: Boolean) {
             itemsIndexed(l) { i, line ->
                 Row {
                     if (lineNumbers) Text("${i + 1}", color = TextDisabled, fontSize = 11.sp, fontFamily = Mono, lineHeight = 17.sp, modifier = Modifier.width(36.dp).padding(end = 8.dp))
-                    Text(line.trimEnd('\r').ifEmpty { " " }, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
+                    val st = styled?.getOrNull(i)
+                    if (st != null) Text(st, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
+                    else Text(line.trimEnd('\r').ifEmpty { " " }, color = TextPrimary, fontSize = 12.sp, fontFamily = Mono, lineHeight = 17.sp)
                 }
             }
             if (truncated) item { Text("Showing the first 512 KB. Use “Open with” for the full file.", color = AccentOrange, fontSize = 12.sp, modifier = Modifier.padding(vertical = 16.dp)) }
         }
     }
+}
+
+private fun styleOf(k: app.feldkit.code.Highlighter.Kind): androidx.compose.ui.text.SpanStyle = when (k) {
+    app.feldkit.code.Highlighter.Kind.KEYWORD -> androidx.compose.ui.text.SpanStyle(color = Accent)
+    app.feldkit.code.Highlighter.Kind.STRING -> androidx.compose.ui.text.SpanStyle(color = AccentSand)
+    app.feldkit.code.Highlighter.Kind.COMMENT -> androidx.compose.ui.text.SpanStyle(color = TextTertiary, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+    app.feldkit.code.Highlighter.Kind.NUMBER -> androidx.compose.ui.text.SpanStyle(color = AccentOrange)
+    app.feldkit.code.Highlighter.Kind.TYPE -> androidx.compose.ui.text.SpanStyle(color = AccentLight)
+    app.feldkit.code.Highlighter.Kind.FUNCTION -> androidx.compose.ui.text.SpanStyle(color = AccentGreen)
+    app.feldkit.code.Highlighter.Kind.ANNOTATION -> androidx.compose.ui.text.SpanStyle(color = AccentAmber)
+    app.feldkit.code.Highlighter.Kind.TAG -> androidx.compose.ui.text.SpanStyle(color = Accent)
+    app.feldkit.code.Highlighter.Kind.ATTRIBUTE -> androidx.compose.ui.text.SpanStyle(color = AccentLight)
+    app.feldkit.code.Highlighter.Kind.KEY -> androidx.compose.ui.text.SpanStyle(color = AccentLight)
+    app.feldkit.code.Highlighter.Kind.HEADING -> androidx.compose.ui.text.SpanStyle(color = Accent, fontWeight = FontWeight.SemiBold)
+    app.feldkit.code.Highlighter.Kind.OPERATOR -> androidx.compose.ui.text.SpanStyle(color = AccentAmber)
 }
 
 /** PDF viewer on [PdfRenderer]: pages rendered on demand, pinch to change the zoom, scrolls both ways. */
